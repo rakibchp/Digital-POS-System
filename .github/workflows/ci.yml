@@ -36,6 +36,6 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "25"
+          java-version: "21"
           cache: maven
       - run: ./mvnw -B -ntp verify
