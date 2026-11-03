@@ -1,7 +1,6 @@
 package com.example.pos.product;
 
 import static org.mockito.BDDMockito.given;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -70,7 +69,6 @@ class ProductControllerTest {
 
 		mockMvc.perform(post("/api/v1/products")
 				.with(user("cashier"))
-				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{"sku":"COFFEE-01","name":"Coffee","price":3.50}
@@ -84,7 +82,6 @@ class ProductControllerTest {
 	void rejectsInvalidProductPrice() throws Exception {
 		mockMvc.perform(post("/api/v1/products")
 				.with(user("cashier"))
-				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{"sku":"COFFEE-01","name":"Coffee","price":-1}

@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Debug POS backend",
+            "request": "launch",
+            "mainClass": "com.example.pos.PosApplication",
+            "projectName": "pos",
+            "envFile": "${workspaceFolder}/backend/.env"
+        }
+    ]
+}
