@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  adjustInventory,
   authenticate,
   createProduct,
+  getInventory,
   getProducts,
 } from "./backend";
 
@@ -70,5 +72,53 @@ describe("backend API client", () => {
       message: "Duplicate SKU",
       status: 409,
     });
+  });
+
+  it("loads inventory and records a stock adjustment", async () => {
+    const inventoryItem = {
+      productId: "product-1",
+      sku: "COFFEE-01",
+      name: "Coffee",
+      quantityOnHand: 5,
+    };
+    const adjustment = {
+      id: "adjustment-1",
+      productId: "product-1",
+      quantityChange: 3,
+      quantityOnHand: 8,
+      reason: "Supplier delivery",
+      createdAt: "2026-11-04T00:00:00Z",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [inventoryItem],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => adjustment,
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getInventory("Basic token")).resolves.toEqual([inventoryItem]);
+    await expect(
+      adjustInventory("Basic token", "product-1", {
+        direction: "RECEIVE",
+        quantity: 3,
+        reason: "Supplier delivery",
+      }),
+    ).resolves.toEqual(adjustment);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/backend/inventory/product-1/adjustments",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          direction: "RECEIVE",
+          quantity: 3,
+          reason: "Supplier delivery",
+        }),
+      }),
+    );
   });
 });

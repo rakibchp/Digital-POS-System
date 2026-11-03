@@ -16,6 +16,28 @@ export interface CreateProductInput {
   price: number;
 }
 
+export interface InventoryItem {
+  productId: string;
+  sku: string;
+  name: string;
+  quantityOnHand: number;
+}
+
+export interface InventoryAdjustmentInput {
+  direction: "RECEIVE" | "REMOVE";
+  quantity: number;
+  reason: string;
+}
+
+export interface InventoryAdjustment {
+  id: string;
+  productId: string;
+  quantityChange: number;
+  quantityOnHand: number;
+  reason: string;
+  createdAt: string;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -95,6 +117,40 @@ function isProduct(value: unknown): value is Product {
   );
 }
 
+function isInventoryItem(value: unknown): value is InventoryItem {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "productId" in value &&
+    typeof value.productId === "string" &&
+    "sku" in value &&
+    typeof value.sku === "string" &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "quantityOnHand" in value &&
+    typeof value.quantityOnHand === "number"
+  );
+}
+
+function isInventoryAdjustment(value: unknown): value is InventoryAdjustment {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "productId" in value &&
+    typeof value.productId === "string" &&
+    "quantityChange" in value &&
+    typeof value.quantityChange === "number" &&
+    "quantityOnHand" in value &&
+    typeof value.quantityOnHand === "number" &&
+    "reason" in value &&
+    typeof value.reason === "string" &&
+    "createdAt" in value &&
+    typeof value.createdAt === "string"
+  );
+}
+
 export async function authenticate(
   username: string,
   password: string,
@@ -129,6 +185,36 @@ export async function createProduct(
   });
   if (!isProduct(payload)) {
     throw new ApiError("Backend returned an invalid product", 502);
+  }
+  return payload;
+}
+
+export async function getInventory(
+  authorization: string,
+): Promise<InventoryItem[]> {
+  const payload = await request("/api/backend/inventory", authorization);
+  if (!Array.isArray(payload) || !payload.every(isInventoryItem)) {
+    throw new ApiError("Backend returned an invalid inventory list", 502);
+  }
+  return payload;
+}
+
+export async function adjustInventory(
+  authorization: string,
+  productId: string,
+  adjustment: InventoryAdjustmentInput,
+): Promise<InventoryAdjustment> {
+  const payload = await request(
+    `/api/backend/inventory/${encodeURIComponent(productId)}/adjustments`,
+    authorization,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(adjustment),
+    },
+  );
+  if (!isInventoryAdjustment(payload)) {
+    throw new ApiError("Backend returned an invalid inventory adjustment", 502);
   }
   return payload;
 }
