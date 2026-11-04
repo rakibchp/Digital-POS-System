@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError, getSales, type Sale } from "@/lib/api/backend";
 import { SalesDashboard } from "./sales-dashboard";
@@ -79,6 +79,23 @@ describe("SalesDashboard", () => {
 
     expect(await screen.findByText("No sales yet")).toBeInTheDocument();
     expect(screen.getAllByText("$0.00")).toHaveLength(2);
+  });
+
+  it("opens a past transaction receipt for printing", async () => {
+    vi.mocked(getSales).mockResolvedValue(sales);
+    const print = vi.spyOn(window, "print").mockImplementation(() => {});
+
+    render(<SalesDashboard authorization="Basic token" onSignOut={vi.fn()} />);
+    await screen.findByText("sale-123");
+    fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
+
+    expect(screen.getByRole("dialog", { name: "Receipt details" })).toBeInTheDocument();
+    expect(screen.getByText("Cash received")).toBeInTheDocument();
+    expect(screen.getByText("Change")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Print receipt" }));
+    expect(print).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog", { name: "Receipt details" })).not.toBeInTheDocument();
   });
 
   it("signs out when the sales API rejects the credentials", async () => {

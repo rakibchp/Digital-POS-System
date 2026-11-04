@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, getSales, type Sale } from "@/lib/api/backend";
 import { summarizeSales } from "./sales-summary";
+import { SaleReceipt } from "./sale-receipt";
 
 interface SalesDashboardProps {
   authorization: string;
@@ -27,6 +28,7 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
   const summary = useMemo(() => summarizeSales(sales), [sales]);
 
   const loadSales = useCallback(async () => {
@@ -121,6 +123,7 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
                         <th className="px-4 py-3 font-medium">Payment</th>
                         <th className="px-4 py-3 text-right font-medium">Items</th>
                         <th className="px-4 py-3 text-right font-medium">Total</th>
+                        <th className="px-4 py-3 text-right font-medium">Receipt</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/8">
@@ -145,6 +148,15 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
                           </td>
                           <td className="px-4 py-3 text-right font-medium tabular-nums">
                             {formatPrice(sale.totalAmount)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-white/10"
+                              onClick={() => setReceiptSale(sale)}
+                              type="button"
+                            >
+                              View
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -188,6 +200,24 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
             </div>
           )}
         </>
+      )}
+      {receiptSale && (
+        <div
+          aria-label="Receipt details"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setReceiptSale(null);
+            }
+          }}
+          role="dialog"
+        >
+          <SaleReceipt
+            onClose={() => setReceiptSale(null)}
+            sale={receiptSale}
+          />
+        </div>
       )}
     </section>
   );

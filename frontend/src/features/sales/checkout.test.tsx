@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
@@ -103,6 +103,10 @@ describe("Checkout", () => {
       expect(screen.getByText("3 in stock")).toBeInTheDocument();
     });
     expect(screen.getByText("Sale · 2 items")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Receipt sale-1" })).toBeInTheDocument();
+    const receipt = within(screen.getByRole("region", { name: "Receipt sale-1" }));
+    expect(receipt.getByText("Cash received")).toBeInTheDocument();
+    expect(receipt.getByText("$10.00")).toBeInTheDocument();
   });
 
   it("does not submit cash payment below the sale total", async () => {

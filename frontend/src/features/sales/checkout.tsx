@@ -13,6 +13,7 @@ import {
   type Product,
   type Sale,
 } from "@/lib/api/backend";
+import { SaleReceipt } from "./sale-receipt";
 
 interface CheckoutProps {
   authorization: string;
@@ -38,6 +39,7 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [cashReceived, setCashReceived] = useState("");
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
+  const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -99,6 +101,7 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
   const cashTendered = cashReceived.trim() ? Number(cashReceived) : cartTotal;
 
   function changeQuantity(product: CheckoutProduct, amount: number) {
+    setReceiptSale(null);
     setCart((current) => {
       const quantity = (current[product.id] ?? 0) + amount;
       if (quantity <= 0) {
@@ -157,6 +160,7 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
       );
       setCart({});
       setCashReceived("");
+      setReceiptSale(sale);
       setNotice(
         sale.changeDue && sale.changeDue > 0
           ? `Sale complete · ${formatPrice(sale.totalAmount)} · Change ${formatPrice(sale.changeDue)}`
@@ -207,6 +211,11 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
         <p className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200" role="status">
           {notice}
         </p>
+      )}
+      {receiptSale && (
+        <div className="mt-5 flex justify-center">
+          <SaleReceipt sale={receiptSale} />
+        </div>
       )}
 
       {loading ? (
@@ -326,6 +335,13 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
                       <p className="font-semibold tabular-nums text-slate-200">
                         {formatPrice(sale.totalAmount)}
                       </p>
+                      <button
+                        className="shrink-0 rounded-lg border border-white/15 px-3 py-2 text-xs font-medium text-slate-200 hover:bg-white/10"
+                        onClick={() => setReceiptSale(sale)}
+                        type="button"
+                      >
+                        Receipt
+                      </button>
                     </li>
                   ))}
                 </ul>
