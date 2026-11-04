@@ -6,13 +6,16 @@ import { LoginForm } from "@/features/auth/login-form";
 import { InventoryManagement } from "@/features/inventory/inventory-management";
 import { ProductCatalog } from "@/features/products/product-catalog";
 import { Checkout } from "@/features/sales/checkout";
+import { SalesDashboard } from "@/features/sales/sales-dashboard";
 
 export function PosWorkspace() {
   const [authenticated, setAuthenticated] = useState<{
     username: string;
     authorization: string;
   } | null>(null);
-  const [section, setSection] = useState<"checkout" | "products" | "inventory">("checkout");
+  const [section, setSection] = useState<
+    "checkout" | "sales" | "products" | "inventory"
+  >("checkout");
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 py-12 text-white sm:px-6">
@@ -53,6 +56,18 @@ export function PosWorkspace() {
                 Checkout
               </button>
               <button
+                aria-current={section === "sales" ? "page" : undefined}
+                className={`h-10 flex-1 rounded-lg px-4 text-sm font-medium transition ${
+                  section === "sales"
+                    ? "bg-emerald-300 text-slate-950"
+                    : "text-slate-300 hover:bg-white/8"
+                }`}
+                onClick={() => setSection("sales")}
+                type="button"
+              >
+                Sales
+              </button>
+              <button
                 aria-current={section === "products" ? "page" : undefined}
                 className={`h-10 flex-1 rounded-lg px-4 text-sm font-medium transition ${
                   section === "products"
@@ -89,6 +104,11 @@ export function PosWorkspace() {
             </div>
             {section === "checkout" ? (
               <Checkout
+                authorization={authenticated.authorization}
+                onSignOut={() => setAuthenticated(null)}
+              />
+            ) : section === "sales" ? (
+              <SalesDashboard
                 authorization={authenticated.authorization}
                 onSignOut={() => setAuthenticated(null)}
               />
