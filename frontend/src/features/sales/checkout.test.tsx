@@ -63,6 +63,9 @@ describe("Checkout", () => {
       createdAt: "2026-11-04T00:00:00Z",
       customerId: "customer-1",
       customerName: "Sam Customer",
+      paymentMethod: "CASH",
+      amountTendered: 10,
+      changeDue: 3,
       items: [
         {
           productId: product.id,
@@ -81,20 +84,104 @@ describe("Checkout", () => {
     fireEvent.change(screen.getByLabelText("Customer"), {
       target: { value: "customer-1" },
     });
+    fireEvent.change(screen.getByLabelText("Cash received"), {
+      target: { value: "10.00" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
     fireEvent.click(screen.getByRole("button", { name: "Add one Coffee" }));
     expect(screen.getAllByText("$7.00")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "Complete sale" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Sale complete");
+    expect(await screen.findByRole("status")).toHaveTextContent("Change $3.00");
     expect(createSale).toHaveBeenCalledWith("Basic token", {
       customerId: "customer-1",
+      paymentMethod: "CASH",
+      amountTendered: 10,
       items: [{ productId: "product-1", quantity: 2 }],
     });
     await waitFor(() => {
       expect(screen.getByText("3 in stock")).toBeInTheDocument();
     });
     expect(screen.getByText("Sale · 2 items")).toBeInTheDocument();
+  });
+
+  it("does not submit cash payment below the sale total", async () => {
+    vi.mocked(getProducts).mockResolvedValue([product]);
+    vi.mocked(getInventory).mockResolvedValue([
+      {
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        quantityOnHand: 5,
+      },
+    ]);
+    vi.mocked(getSales).mockResolvedValue([]);
+    vi.mocked(getCustomers).mockResolvedValue([]);
+
+    render(<Checkout authorization="Basic token" onSignOut={vi.fn()} />);
+    await screen.findByText("Coffee");
+    fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+    fireEvent.change(screen.getByLabelText("Cash received"), {
+      target: { value: "2.00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Complete sale" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Cash received must be at least the sale total.",
+    );
+    expect(createSale).not.toHaveBeenCalled();
+  });
+
+  it("submits a card payment without cash tender details", async () => {
+    vi.mocked(getProducts).mockResolvedValue([product]);
+    vi.mocked(getInventory).mockResolvedValue([
+      {
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        quantityOnHand: 5,
+      },
+    ]);
+    vi.mocked(getSales).mockResolvedValue([]);
+    vi.mocked(getCustomers).mockResolvedValue([]);
+    vi.mocked(createSale).mockResolvedValue({
+      id: "sale-card",
+      totalAmount: 3.5,
+      createdAt: "2026-11-04T00:00:00Z",
+      customerId: null,
+      customerName: null,
+      paymentMethod: "CARD",
+      amountTendered: 3.5,
+      changeDue: 0,
+      items: [
+        {
+          productId: product.id,
+          sku: product.sku,
+          productName: product.name,
+          unitPrice: product.price,
+          quantity: 1,
+          lineTotal: product.price,
+        },
+      ],
+    });
+
+    render(<Checkout authorization="Basic token" onSignOut={vi.fn()} />);
+    await screen.findByText("Coffee");
+    fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+    fireEvent.change(screen.getByLabelText("Payment method"), {
+      target: { value: "CARD" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Complete sale" }));
+
+    await waitFor(() => {
+      expect(createSale).toHaveBeenCalledWith("Basic token", {
+        paymentMethod: "CARD",
+        items: [{ productId: "product-1", quantity: 1 }],
+      });
+    });
+    expect(
+      screen.getByText(/must still be processed on your payment terminal/i),
+    ).toBeInTheDocument();
   });
 
   it("prevents adding more than available inventory", async () => {

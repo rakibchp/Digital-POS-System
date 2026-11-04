@@ -163,6 +163,9 @@ describe("backend API client", () => {
       createdAt: "2026-11-04T00:00:00Z",
       customerId: null,
       customerName: null,
+      paymentMethod: "CASH",
+      amountTendered: 7,
+      changeDue: 0,
       items: [
         {
           productId: "product-1",
@@ -183,6 +186,8 @@ describe("backend API client", () => {
     await expect(getSales("Basic token")).resolves.toEqual([sale]);
     await expect(
       createSale("Basic token", {
+        paymentMethod: "CASH",
+        amountTendered: 7,
         items: [{ productId: "product-1", quantity: 2 }],
       }),
     ).resolves.toEqual(sale);
@@ -191,6 +196,8 @@ describe("backend API client", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
+          paymentMethod: "CASH",
+          amountTendered: 7,
           items: [{ productId: "product-1", quantity: 2 }],
         }),
       }),

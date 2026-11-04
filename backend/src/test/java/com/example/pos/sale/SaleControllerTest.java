@@ -49,6 +49,9 @@ class SaleControllerTest {
 						Instant.parse("2026-11-04T00:00:00Z"),
 						null,
 						null,
+						PaymentMethod.CASH,
+						new BigDecimal("7.00"),
+						BigDecimal.ZERO,
 						List.of(new SaleItemResponse(
 								productId, "COFFEE-01", "Coffee",
 								new BigDecimal("3.50"), 2, new BigDecimal("7.00")))));
@@ -57,11 +60,25 @@ class SaleControllerTest {
 				.with(user("cashier"))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
-						{"items":[{"productId":"6a427584-9c4a-4f4f-82fa-61b0bac118ea","quantity":2}]}
+						{"paymentMethod":"CASH","items":[{"productId":"6a427584-9c4a-4f4f-82fa-61b0bac118ea","quantity":2}]}
 						"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.totalAmount").value(7.00))
+				.andExpect(jsonPath("$.paymentMethod").value("CASH"))
+				.andExpect(jsonPath("$.amountTendered").value(7.00))
+				.andExpect(jsonPath("$.changeDue").value(0.00))
 				.andExpect(jsonPath("$.items[0].sku").value("COFFEE-01"));
+	}
+
+	@Test
+	void requiresPaymentMethod() throws Exception {
+		mockMvc.perform(post("/api/v1/sales")
+				.with(user("cashier"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"items":[{"productId":"6a427584-9c4a-4f4f-82fa-61b0bac118ea","quantity":1}]}
+						"""))
+				.andExpect(status().isBadRequest());
 	}
 
 	@Test
@@ -70,7 +87,7 @@ class SaleControllerTest {
 				.with(user("cashier"))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
-						{"items":[]}
+						{"paymentMethod":"CASH","items":[]}
 						"""))
 				.andExpect(status().isBadRequest());
 	}
@@ -85,10 +102,27 @@ class SaleControllerTest {
 				.with(user("cashier"))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
-						{"items":[{"productId":"6a427584-9c4a-4f4f-82fa-61b0bac118ea","quantity":2}]}
+						{"paymentMethod":"CASH","items":[{"productId":"6a427584-9c4a-4f4f-82fa-61b0bac118ea","quantity":2}]}
 						"""))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.message").value(
 						"Product '6a427584-9c4a-4f4f-82fa-61b0bac118ea' has 1 units available; 2 requested"));
+	}
+
+	@Test
+	void reportsInsufficientCashTenderAsBadRequest() throws Exception {
+		given(saleService.create(org.mockito.ArgumentMatchers.any()))
+				.willThrow(new InsufficientPaymentException(
+						new BigDecimal("7.00"), new BigDecimal("5.00")));
+
+		mockMvc.perform(post("/api/v1/sales")
+				.with(user("cashier"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"paymentMethod":"CASH","amountTendered":5.00,"items":[{"productId":"6a427584-9c4a-4f4f-82fa-61b0bac118ea","quantity":2}]}
+						"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(
+						"Cash tendered 5.00 is less than sale total 7.00"));
 	}
 }

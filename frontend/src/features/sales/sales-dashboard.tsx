@@ -118,6 +118,7 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
                         <th className="px-4 py-3 font-medium">Transaction</th>
                         <th className="px-4 py-3 font-medium">Date</th>
                         <th className="px-4 py-3 font-medium">Customer</th>
+                        <th className="px-4 py-3 font-medium">Payment</th>
                         <th className="px-4 py-3 text-right font-medium">Items</th>
                         <th className="px-4 py-3 text-right font-medium">Total</th>
                       </tr>
@@ -133,6 +134,11 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
                           </td>
                           <td className="px-4 py-3 text-slate-400">
                             {sale.customerName || "Walk-in"}
+                          </td>
+                          <td className="px-4 py-3 text-slate-400">
+                            {sale.paymentMethod
+                              ? `${sale.paymentMethod.charAt(0)}${sale.paymentMethod.slice(1).toLowerCase()}`
+                              : "Not recorded"}
                           </td>
                           <td className="px-4 py-3 text-right tabular-nums">
                             {sale.items.reduce((quantity, item) => quantity + item.quantity, 0)}

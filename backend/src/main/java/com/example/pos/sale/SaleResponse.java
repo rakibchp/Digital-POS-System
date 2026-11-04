@@ -11,5 +11,8 @@ public record SaleResponse(
 		Instant createdAt,
 		UUID customerId,
 		String customerName,
+		PaymentMethod paymentMethod,
+		BigDecimal amountTendered,
+		BigDecimal changeDue,
 		List<SaleItemResponse> items) {
 }

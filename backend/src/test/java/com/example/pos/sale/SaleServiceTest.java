@@ -56,7 +56,9 @@ class SaleServiceTest {
 				.willAnswer(invocation -> invocation.getArgument(0));
 
 		SaleResponse result = saleService.create(
-				new CreateSaleRequest(null, List.of(new CreateSaleRequest.SaleLineRequest(productId, 2))));
+				new CreateSaleRequest(
+						null, PaymentMethod.CASH, null,
+						List.of(new CreateSaleRequest.SaleLineRequest(productId, 2))));
 
 		assertEquals(new BigDecimal("7.00"), result.totalAmount());
 		assertEquals("COFFEE-01", result.items().getFirst().sku());
@@ -79,7 +81,8 @@ class SaleServiceTest {
 				.willAnswer(invocation -> invocation.getArgument(0));
 
 		SaleResponse result = saleService.create(new CreateSaleRequest(
-				customerId, List.of(new CreateSaleRequest.SaleLineRequest(productId, 1))));
+				customerId, PaymentMethod.CASH, null,
+				List.of(new CreateSaleRequest.SaleLineRequest(productId, 1))));
 
 		assertEquals(customer.getId(), result.customerId());
 		assertEquals("Sam Customer", result.customerName());
@@ -95,7 +98,9 @@ class SaleServiceTest {
 		assertThrows(
 				InsufficientSaleStockException.class,
 				() -> saleService.create(
-						new CreateSaleRequest(null, List.of(new CreateSaleRequest.SaleLineRequest(productId, 2)))));
+						new CreateSaleRequest(
+								null, PaymentMethod.CASH, null,
+								List.of(new CreateSaleRequest.SaleLineRequest(productId, 2)))));
 	}
 
 	@Test
@@ -105,7 +110,7 @@ class SaleServiceTest {
 
 		assertThrows(
 				DuplicateSaleProductException.class,
-				() -> saleService.create(new CreateSaleRequest(null, List.of(line, line))));
+				() -> saleService.create(new CreateSaleRequest(null, PaymentMethod.CASH, null, List.of(line, line))));
 	}
 
 	@Test
@@ -116,7 +121,9 @@ class SaleServiceTest {
 		assertThrows(
 				SaleProductNotFoundException.class,
 				() -> saleService.create(
-						new CreateSaleRequest(null, List.of(new CreateSaleRequest.SaleLineRequest(productId, 1)))));
+						new CreateSaleRequest(
+								null, PaymentMethod.CASH, null,
+								List.of(new CreateSaleRequest.SaleLineRequest(productId, 1)))));
 	}
 
 	@Test
@@ -128,7 +135,69 @@ class SaleServiceTest {
 				SaleCustomerNotFoundException.class,
 				() -> saleService.create(new CreateSaleRequest(
 						customerId,
+						PaymentMethod.CASH,
+						null,
 						List.of(new CreateSaleRequest.SaleLineRequest(UUID.randomUUID(), 1)))));
+	}
+
+	@Test
+	void calculatesCashChangeAndPersistsTender() {
+		UUID productId = UUID.randomUUID();
+		Product product = product(productId, "COFFEE-01", "Coffee", "3.50");
+		given(productRepository.findByIdForUpdate(productId)).willReturn(Optional.of(product));
+		given(inventoryRepository.sumQuantityChangeByProductId(productId)).willReturn(5L);
+		given(saleRepository.saveAndFlush(any(Sale.class)))
+				.willAnswer(invocation -> invocation.getArgument(0));
+		given(inventoryRepository.saveAll(any(Iterable.class)))
+				.willAnswer(invocation -> invocation.getArgument(0));
+
+		SaleResponse result = saleService.create(new CreateSaleRequest(
+				null,
+				PaymentMethod.CASH,
+				new BigDecimal("5.00"),
+				List.of(new CreateSaleRequest.SaleLineRequest(productId, 1))));
+
+		assertEquals(PaymentMethod.CASH, result.paymentMethod());
+		assertEquals(new BigDecimal("5.00"), result.amountTendered());
+		assertEquals(new BigDecimal("1.50"), result.changeDue());
+	}
+
+	@Test
+	void rejectsCashTenderBelowTotal() {
+		UUID productId = UUID.randomUUID();
+		Product product = product(productId, "COFFEE-01", "Coffee", "3.50");
+		given(productRepository.findByIdForUpdate(productId)).willReturn(Optional.of(product));
+		given(inventoryRepository.sumQuantityChangeByProductId(productId)).willReturn(5L);
+
+		assertThrows(
+				InsufficientPaymentException.class,
+				() -> saleService.create(new CreateSaleRequest(
+						null,
+						PaymentMethod.CASH,
+						new BigDecimal("3.00"),
+						List.of(new CreateSaleRequest.SaleLineRequest(productId, 1)))));
+	}
+
+	@Test
+	void recordsCardPaymentForExactSaleAmount() {
+		UUID productId = UUID.randomUUID();
+		Product product = product(productId, "COFFEE-01", "Coffee", "3.50");
+		given(productRepository.findByIdForUpdate(productId)).willReturn(Optional.of(product));
+		given(inventoryRepository.sumQuantityChangeByProductId(productId)).willReturn(5L);
+		given(saleRepository.saveAndFlush(any(Sale.class)))
+				.willAnswer(invocation -> invocation.getArgument(0));
+		given(inventoryRepository.saveAll(any(Iterable.class)))
+				.willAnswer(invocation -> invocation.getArgument(0));
+
+		SaleResponse result = saleService.create(new CreateSaleRequest(
+				null,
+				PaymentMethod.CARD,
+				null,
+				List.of(new CreateSaleRequest.SaleLineRequest(productId, 1))));
+
+		assertEquals(PaymentMethod.CARD, result.paymentMethod());
+		assertEquals(new BigDecimal("3.50"), result.amountTendered());
+		assertEquals(BigDecimal.ZERO, result.changeDue());
 	}
 
 	private static Product product(UUID id, String sku, String name, String price) {

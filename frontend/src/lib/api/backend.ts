@@ -61,17 +61,24 @@ export interface SaleItem {
   lineTotal: number;
 }
 
+export type PaymentMethod = "CASH" | "CARD" | "OTHER";
+
 export interface Sale {
   id: string;
   totalAmount: number;
   createdAt: string;
   customerId: string | null;
   customerName: string | null;
+  paymentMethod: PaymentMethod | null;
+  amountTendered: number | null;
+  changeDue: number | null;
   items: SaleItem[];
 }
 
 export interface CreateSaleInput {
   customerId?: string;
+  paymentMethod: PaymentMethod;
+  amountTendered?: number;
   items: Array<{ productId: string; quantity: number }>;
 }
 
@@ -238,6 +245,15 @@ function isSale(value: unknown): value is Sale {
     (typeof value.customerId === "string" || value.customerId === null) &&
     "customerName" in value &&
     (typeof value.customerName === "string" || value.customerName === null) &&
+    "paymentMethod" in value &&
+    (value.paymentMethod === "CASH" ||
+      value.paymentMethod === "CARD" ||
+      value.paymentMethod === "OTHER" ||
+      value.paymentMethod === null) &&
+    "amountTendered" in value &&
+    (typeof value.amountTendered === "number" || value.amountTendered === null) &&
+    "changeDue" in value &&
+    (typeof value.changeDue === "number" || value.changeDue === null) &&
     "items" in value &&
     Array.isArray(value.items) &&
     value.items.every(isSaleItem)

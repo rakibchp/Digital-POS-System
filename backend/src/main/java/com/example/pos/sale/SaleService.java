@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -79,7 +80,21 @@ public class SaleService {
 					lineTotal));
 		}
 
-		Sale sale = saleRepository.saveAndFlush(new Sale(saleLines, customer));
+		BigDecimal total = saleLines.stream()
+				.map(Sale.SaleLineSnapshot::lineTotal)
+				.reduce(BigDecimal.ZERO, BigDecimal::add);
+		BigDecimal tendered = request.paymentMethod() == PaymentMethod.CASH
+				? request.amountTendered() == null ? total : request.amountTendered()
+				: total;
+		if (request.paymentMethod() == PaymentMethod.CASH && tendered.compareTo(total) < 0) {
+			throw new InsufficientPaymentException(total, tendered);
+		}
+		BigDecimal changeDue = request.paymentMethod() == PaymentMethod.CASH
+				? tendered.subtract(total)
+				: BigDecimal.ZERO;
+
+		Sale sale = saleRepository.saveAndFlush(new Sale(
+				saleLines, customer, request.paymentMethod(), tendered, changeDue));
 		inventoryRepository.saveAll(saleLines.stream()
 				.map(line -> new InventoryMovement(
 						line.productId(),
@@ -103,6 +118,9 @@ public class SaleService {
 				sale.getCreatedAt(),
 				sale.getCustomer() == null ? null : sale.getCustomer().getId(),
 				sale.getCustomer() == null ? null : sale.getCustomer().getName(),
+				sale.getPaymentMethod(),
+				sale.getAmountTendered(),
+				sale.getChangeDue(),
 				sale.getItems().stream()
 						.map(item -> new SaleItemResponse(
 								item.getProductId(),

@@ -9,6 +9,7 @@ import {
   getProducts,
   getSales,
   type Customer,
+  type PaymentMethod,
   type Product,
   type Sale,
 } from "@/lib/api/backend";
@@ -34,6 +35,8 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
+  const [cashReceived, setCashReceived] = useState("");
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -93,6 +96,7 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
     (total, line) => total + line.product.price * line.quantity,
     0,
   );
+  const cashTendered = cashReceived.trim() ? Number(cashReceived) : cartTotal;
 
   function changeQuantity(product: CheckoutProduct, amount: number) {
     setCart((current) => {
@@ -116,12 +120,25 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
       return;
     }
 
+    if (
+      paymentMethod === "CASH" &&
+      (!Number.isFinite(cashTendered) ||
+        Math.round(cashTendered * 100) < Math.round(cartTotal * 100))
+    ) {
+      setError("Cash received must be at least the sale total.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
     setNotice("");
     try {
       const sale = await createSale(authorization, {
         ...(customerId ? { customerId } : {}),
+        paymentMethod,
+        ...(paymentMethod === "CASH" && cashReceived.trim()
+          ? { amountTendered: cashTendered }
+          : {}),
         items: cartLines.map(({ product, quantity }) => ({
           productId: product.id,
           quantity,
@@ -139,7 +156,12 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
         })),
       );
       setCart({});
-      setNotice(`Sale complete · ${formatPrice(sale.totalAmount)}`);
+      setCashReceived("");
+      setNotice(
+        sale.changeDue && sale.changeDue > 0
+          ? `Sale complete · ${formatPrice(sale.totalAmount)} · Change ${formatPrice(sale.changeDue)}`
+          : `Sale complete · ${formatPrice(sale.totalAmount)}`,
+      );
     } catch (requestError) {
       if (requestError instanceof ApiError && requestError.status === 401) {
         onSignOut();
@@ -286,6 +308,14 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
                         <p className="text-sm font-medium text-white">
                           Sale · {sale.items.reduce((sum, item) => sum + item.quantity, 0)} items
                         </p>
+                        <p className="text-xs text-slate-400">
+                          {sale.paymentMethod
+                            ? `${sale.paymentMethod.charAt(0)}${sale.paymentMethod.slice(1).toLowerCase()}`
+                            : "Payment not recorded"}
+                          {sale.changeDue && sale.changeDue > 0
+                            ? ` · Change ${formatPrice(sale.changeDue)}`
+                            : ""}
+                        </p>
                         {sale.customerName && (
                           <p className="text-xs text-emerald-200">{sale.customerName}</p>
                         )}
@@ -356,6 +386,70 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
                 {formatPrice(cartTotal)}
               </span>
             </div>
+            <label
+              className="mt-5 block text-sm font-medium text-slate-200"
+              htmlFor="checkout-payment-method"
+            >
+              Payment method
+            </label>
+            <select
+              className="mt-2 h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/20"
+              id="checkout-payment-method"
+              onChange={(event) => {
+                const method = event.target.value;
+                if (method === "CASH" || method === "CARD" || method === "OTHER") {
+                  setPaymentMethod(method);
+                }
+                setError("");
+              }}
+              value={paymentMethod}
+            >
+              <option value="CASH">Cash</option>
+              <option value="CARD">Card</option>
+              <option value="OTHER">Other</option>
+            </select>
+            {paymentMethod !== "CASH" && (
+              <p className="mt-2 text-xs text-slate-400">
+                Records the tender type only; card transactions must still be
+                processed on your payment terminal.
+              </p>
+            )}
+            {paymentMethod === "CASH" && (
+              <>
+                <label
+                  className="mt-4 block text-sm font-medium text-slate-200"
+                  htmlFor="checkout-cash-received"
+                >
+                  Cash received
+                </label>
+                <input
+                  className="mt-2 h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/20"
+                  id="checkout-cash-received"
+                  inputMode="decimal"
+                  min="0"
+                  onChange={(event) => {
+                    setCashReceived(event.target.value);
+                    setError("");
+                  }}
+                  placeholder={cartTotal.toFixed(2)}
+                  step="0.01"
+                  type="number"
+                  value={cashReceived}
+                />
+                <p className="mt-2 text-sm text-slate-400">
+                  Change due:{" "}
+                  <span className="font-medium tabular-nums text-emerald-200">
+                    {formatPrice(
+                      cashReceived.trim() &&
+                        Number.isFinite(cashTendered) &&
+                        cashTendered > cartTotal
+                        ? Math.round((cashTendered - cartTotal) * 100) / 100
+                        : 0,
+                    )}
+                  </span>
+                </p>
+              </>
+            )}
             <button
               className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg bg-emerald-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={cartLines.length === 0 || submitting}

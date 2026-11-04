@@ -15,6 +15,9 @@ const sales: Sale[] = [
     createdAt: "2026-11-04T10:00:00Z",
     customerId: "customer-1",
     customerName: "Sam Customer",
+    paymentMethod: "CASH",
+    amountTendered: 15,
+    changeDue: 1,
     items: [
       {
         productId: "coffee",
@@ -32,6 +35,9 @@ const sales: Sale[] = [
     createdAt: "2026-11-04T11:00:00Z",
     customerId: null,
     customerName: null,
+    paymentMethod: "CARD",
+    amountTendered: 5,
+    changeDue: 0,
     items: [
       {
         productId: "tea",
@@ -62,6 +68,7 @@ describe("SalesDashboard", () => {
     expect(screen.getByText("Coffee")).toBeInTheDocument();
     expect(screen.getByText("COFFEE-01 · 4 sold")).toBeInTheDocument();
     expect(screen.getByText("sale-123")).toBeInTheDocument();
+    expect(screen.getAllByText("Cash")).toHaveLength(1);
     expect(screen.getByText(/latest 50 transactions/i)).toBeInTheDocument();
   });
 

@@ -58,6 +58,12 @@ public class SaleController {
 		return new SaleError(exception.getMessage());
 	}
 
+	@ExceptionHandler(InsufficientPaymentException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	public SaleError insufficientPayment(InsufficientPaymentException exception) {
+		return new SaleError(exception.getMessage());
+	}
+
 	public record SaleError(String message) {
 	}
 }

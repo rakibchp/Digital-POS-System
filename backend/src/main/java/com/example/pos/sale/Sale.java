@@ -15,6 +15,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 
 import com.example.pos.customer.Customer;
 
@@ -35,16 +37,34 @@ public class Sale {
 	@JoinColumn(name = "customer_id")
 	private Customer customer;
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "payment_method", length = 16)
+	private PaymentMethod paymentMethod;
+
+	@Column(name = "amount_tendered", precision = 20, scale = 2)
+	private BigDecimal amountTendered;
+
+	@Column(name = "change_due", precision = 20, scale = 2)
+	private BigDecimal changeDue;
+
 	@OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<SaleItem> items = new ArrayList<>();
 
 	protected Sale() {
 	}
 
-	Sale(List<SaleLineSnapshot> lines, Customer customer) {
+	Sale(
+			List<SaleLineSnapshot> lines,
+			Customer customer,
+			PaymentMethod paymentMethod,
+			BigDecimal amountTendered,
+			BigDecimal changeDue) {
 		this.id = UUID.randomUUID();
 		this.createdAt = Instant.now();
 		this.customer = customer;
+		this.paymentMethod = paymentMethod;
+		this.amountTendered = amountTendered;
+		this.changeDue = changeDue;
 		this.totalAmount = lines.stream()
 				.map(SaleLineSnapshot::lineTotal)
 				.reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -69,6 +89,18 @@ public class Sale {
 
 	public Customer getCustomer() {
 		return customer;
+	}
+
+	public PaymentMethod getPaymentMethod() {
+		return paymentMethod;
+	}
+
+	public BigDecimal getAmountTendered() {
+		return amountTendered;
+	}
+
+	public BigDecimal getChangeDue() {
+		return changeDue;
 	}
 
 	record SaleLineSnapshot(
