@@ -8,6 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -109,6 +113,23 @@ public class SaleService {
 		return saleRepository.findTop50ByOrderByCreatedAtDesc().stream()
 				.map(SaleService::toResponse)
 				.toList();
+	}
+
+	@Transactional(readOnly = true)
+	public SalesReportResponse findReport(LocalDate from, LocalDate to) {
+		if (from == null || to == null || from.isAfter(to)
+				|| ChronoUnit.DAYS.between(from, to) >= 31) {
+			throw new SalesReportRangeException();
+		}
+		Instant fromInclusive = from.atStartOfDay().toInstant(ZoneOffset.UTC);
+		Instant toExclusive = to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+		List<SaleResponse> reportSales = saleRepository
+				.findByCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+						fromInclusive, toExclusive)
+				.stream()
+				.map(SaleService::toResponse)
+				.toList();
+		return new SalesReportResponse(from, to, reportSales);
 	}
 
 	@Transactional

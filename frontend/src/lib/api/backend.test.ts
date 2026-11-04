@@ -11,6 +11,7 @@ import {
   getCustomers,
   getPurchaseReceipts,
   getProducts,
+  getSalesReport,
   getSuppliers,
   getSales,
   returnSale,
@@ -312,6 +313,30 @@ describe("backend API client", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ reason: "Customer return" }),
+      }),
+    );
+  });
+
+  it("loads a date-range sales report", async () => {
+    const report = {
+      from: "2026-11-01",
+      to: "2026-11-04",
+      sales: [],
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => report,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      getSalesReport("Basic token", report.from, report.to),
+    ).resolves.toEqual(report);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/backend/sales/report?from=2026-11-01&to=2026-11-04",
+      expect.objectContaining({
+        cache: "no-store",
+        headers: { Authorization: "Basic token" },
       }),
     );
   });

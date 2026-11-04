@@ -1,11 +1,16 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, getSales, returnSale, type Sale } from "@/lib/api/backend";
+import { ApiError, getSales, getSalesReport, returnSale, type Sale } from "@/lib/api/backend";
 import { SalesDashboard } from "./sales-dashboard";
 
 vi.mock("@/lib/api/backend", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/backend")>();
-  return { ...actual, getSales: vi.fn(), returnSale: vi.fn() };
+  return {
+    ...actual,
+    getSales: vi.fn(),
+    getSalesReport: vi.fn(),
+    returnSale: vi.fn(),
+  };
 });
 
 const sales: Sale[] = [
@@ -61,6 +66,41 @@ describe("SalesDashboard", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("loads a date-range report and exports its line items as CSV", async () => {
+    const report = {
+      from: "2026-11-01",
+      to: "2026-11-04",
+      sales,
+    };
+    vi.mocked(getSales).mockResolvedValue(sales);
+    vi.mocked(getSalesReport).mockResolvedValue(report);
+    const createObjectURL = vi.fn<(object: Blob | MediaSource) => string>(
+      () => "blob:report",
+    );
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL,
+    });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    render(<SalesDashboard authorization="Basic token" onSignOut={vi.fn()} />);
+
+    await waitFor(() => expect(getSalesReport).toHaveBeenCalledOnce());
+    expect(await screen.findByText(/2 transactions included/)).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText("Sales report")).getByText("$19.00"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(createObjectURL.mock.calls[0]?.[0]).toBeInstanceOf(Blob);
+    expect(click).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:report");
   });
 
   it("summarizes transactions and ranks products by units sold", async () => {
@@ -68,9 +108,13 @@ describe("SalesDashboard", () => {
 
     render(<SalesDashboard authorization="Basic token" onSignOut={vi.fn()} />);
 
-    expect(await screen.findByText("$19.00")).toBeInTheDocument();
-    expect(screen.getByText("$9.50")).toBeInTheDocument();
-    expect(screen.getByText("6", { selector: "p" })).toBeInTheDocument();
+    await screen.findByText("sale-123");
+    const recentSummary = within(
+      screen.getByRole("group", { name: "Recent sales summary" }),
+    );
+    expect(await recentSummary.findByText("$19.00")).toBeInTheDocument();
+    expect(recentSummary.getByText("$9.50")).toBeInTheDocument();
+    expect(recentSummary.getByText("6", { selector: "p" })).toBeInTheDocument();
     expect(screen.getByText("Coffee")).toBeInTheDocument();
     expect(screen.getByText("COFFEE-01 · 4 sold")).toBeInTheDocument();
     expect(screen.getByText("sale-123")).toBeInTheDocument();
@@ -84,7 +128,9 @@ describe("SalesDashboard", () => {
     render(<SalesDashboard authorization="Basic token" onSignOut={vi.fn()} />);
 
     expect(await screen.findByText("No sales yet")).toBeInTheDocument();
-    expect(screen.getAllByText("$0.00")).toHaveLength(3);
+    expect(
+      within(screen.getByRole("group", { name: "Recent sales summary" })).getAllByText("$0.00"),
+    ).toHaveLength(3);
   });
 
   it("opens a past transaction receipt for printing", async () => {

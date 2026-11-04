@@ -118,6 +118,12 @@ export interface Sale {
   items: SaleItem[];
 }
 
+export interface SalesReport {
+  from: string;
+  to: string;
+  sales: Sale[];
+}
+
 export interface CreateSaleInput {
   customerId?: string;
   paymentMethod: PaymentMethod;
@@ -374,6 +380,20 @@ function isSale(value: unknown): value is Sale {
   );
 }
 
+function isSalesReport(value: unknown): value is SalesReport {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "from" in value &&
+    typeof value.from === "string" &&
+    "to" in value &&
+    typeof value.to === "string" &&
+    "sales" in value &&
+    Array.isArray(value.sales) &&
+    value.sales.every(isSale)
+  );
+}
+
 export async function authenticate(
   username: string,
   password: string,
@@ -544,6 +564,22 @@ export async function getSales(authorization: string): Promise<Sale[]> {
   const payload = await request("/api/backend/sales", authorization);
   if (!Array.isArray(payload) || !payload.every(isSale)) {
     throw new ApiError("Backend returned an invalid sales list", 502);
+  }
+  return payload;
+}
+
+export async function getSalesReport(
+  authorization: string,
+  from: string,
+  to: string,
+): Promise<SalesReport> {
+  const query = new URLSearchParams({ from, to });
+  const payload = await request(
+    `/api/backend/sales/report?${query.toString()}`,
+    authorization,
+  );
+  if (!isSalesReport(payload)) {
+    throw new ApiError("Backend returned an invalid sales report", 502);
   }
   return payload;
 }

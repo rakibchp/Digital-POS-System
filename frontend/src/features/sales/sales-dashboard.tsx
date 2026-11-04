@@ -1,8 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { ApiError, getSales, returnSale, type Sale } from "@/lib/api/backend";
+import {
+  ApiError,
+  getSales,
+  getSalesReport,
+  returnSale,
+  type Sale,
+  type SalesReport,
+} from "@/lib/api/backend";
 import { summarizeSales } from "./sales-summary";
+import { createSalesCsv } from "./sales-report";
 import { SaleReceipt } from "./sale-receipt";
 
 interface SalesDashboardProps {
@@ -24,6 +32,21 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function localDateInput(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function initialReportRange() {
+  const today = new Date();
+  return {
+    from: localDateInput(new Date(today.getFullYear(), today.getMonth(), 1)),
+    to: localDateInput(today),
+  };
+}
+
 export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps) {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +58,16 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
   const [returning, setReturning] = useState(false);
   const [notice, setNotice] = useState("");
   const summary = useMemo(() => summarizeSales(sales), [sales]);
+  const [reportFrom, setReportFrom] = useState(() => initialReportRange().from);
+  const [reportTo, setReportTo] = useState(() => initialReportRange().to);
+  const [reportRange, setReportRange] = useState(initialReportRange);
+  const [report, setReport] = useState<SalesReport | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState("");
+  const reportSummary = useMemo(
+    () => summarizeSales(report?.sales ?? []),
+    [report],
+  );
 
   const loadSales = useCallback(async () => {
     setLoading(true);
@@ -55,6 +88,32 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
       setLoading(false);
     }
   }, [authorization, onSignOut]);
+
+  const loadReport = useCallback(async () => {
+    if (!reportRange.from || !reportRange.to) {
+      return;
+    }
+    setReportLoading(true);
+    setReportError("");
+    setReport(null);
+    try {
+      setReport(
+        await getSalesReport(authorization, reportRange.from, reportRange.to),
+      );
+    } catch (requestError) {
+      if (requestError instanceof ApiError && requestError.status === 401) {
+        onSignOut();
+        return;
+      }
+      setReportError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to load the sales report.",
+      );
+    } finally {
+      setReportLoading(false);
+    }
+  }, [authorization, onSignOut, reportRange]);
 
   async function submitReturn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -96,6 +155,25 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
     void Promise.resolve().then(loadSales);
   }, [loadSales]);
 
+  useEffect(() => {
+    void Promise.resolve().then(loadReport);
+  }, [loadReport]);
+
+  function downloadReport() {
+    if (!report) {
+      return;
+    }
+    const blob = new Blob([createSalesCsv(report.sales)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `sales-report-${report.from}-to-${report.to}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <section className="w-full max-w-6xl rounded-2xl border border-white/10 bg-white/4 p-5 shadow-2xl shadow-black/20 sm:p-7">
       <div className="flex flex-col gap-2 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
@@ -130,13 +208,103 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
         </div>
       )}
 
+      <section
+        aria-label="Sales report"
+        className="mt-6 rounded-xl border border-white/10 bg-slate-950/30 p-4 sm:p-5"
+      >
+        <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="font-semibold text-white">Date-range report</h3>
+            <p className="mt-1 text-sm text-slate-400">
+              Review up to 31 days of sales and export line-item details. Dates use UTC.
+            </p>
+          </div>
+          <form
+            className="flex flex-wrap items-end gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setReportRange({ from: reportFrom, to: reportTo });
+            }}
+          >
+            <label className="space-y-1 text-xs text-slate-300">
+              From
+              <input
+                className="block h-9 rounded-lg border border-white/10 bg-slate-950 px-2 text-sm text-white"
+                max={reportTo}
+                onChange={(event) => setReportFrom(event.target.value)}
+                required
+                type="date"
+                value={reportFrom}
+              />
+            </label>
+            <label className="space-y-1 text-xs text-slate-300">
+              To
+              <input
+                className="block h-9 rounded-lg border border-white/10 bg-slate-950 px-2 text-sm text-white"
+                min={reportFrom}
+                onChange={(event) => setReportTo(event.target.value)}
+                required
+                type="date"
+                value={reportTo}
+              />
+            </label>
+            <button
+              className="h-9 rounded-lg bg-emerald-300 px-3 text-sm font-semibold text-slate-950 hover:bg-emerald-200 disabled:opacity-50"
+              disabled={reportLoading || !reportFrom || !reportTo}
+              type="submit"
+            >
+              {reportLoading ? "Loading…" : "Run report"}
+            </button>
+            <button
+              className="h-9 rounded-lg border border-white/15 px-3 text-sm font-medium text-slate-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!report || reportLoading}
+              onClick={downloadReport}
+              type="button"
+            >
+              Export CSV
+            </button>
+          </form>
+        </div>
+        {reportError && (
+          <p className="mt-4 text-sm text-rose-200" role="alert">
+            {reportError}
+          </p>
+        )}
+        {reportLoading ? (
+          <p className="py-5 text-sm text-slate-400" role="status">
+            Loading date-range report…
+          </p>
+        ) : report ? (
+          <>
+            <div className="grid gap-3 pt-4 sm:grid-cols-2 xl:grid-cols-5">
+              <Metric label="Report sales" value={reportSummary.saleCount.toLocaleString()} />
+              <Metric label="Report net revenue" value={formatPrice(reportSummary.totalRevenue)} />
+              <Metric label="Report refunds" value={formatPrice(reportSummary.refundTotal)} />
+              <Metric label="Report average sale" value={formatPrice(reportSummary.averageSale)} />
+              <Metric label="Report items sold" value={reportSummary.itemsSold.toLocaleString()} />
+            </div>
+            <p className="mt-3 text-xs text-slate-400">
+              {report.from} through {report.to} · {report.sales.length} transactions included
+            </p>
+          </>
+        ) : !reportError ? (
+          <p className="py-5 text-sm text-slate-400">
+            Choose a date range to run a report.
+          </p>
+        ) : null}
+      </section>
+
       {loading ? (
         <p className="mt-6 rounded-xl border border-white/10 p-5 text-sm text-slate-400" role="status">
           Loading sales overview…
         </p>
       ) : !error && (
         <>
-          <div className="grid gap-3 pt-6 sm:grid-cols-2 xl:grid-cols-5">
+          <div
+            aria-label="Recent sales summary"
+            className="grid gap-3 pt-6 sm:grid-cols-2 xl:grid-cols-5"
+            role="group"
+          >
             <Metric label="Sales recorded" value={summary.saleCount.toLocaleString()} />
             <Metric label="Net revenue" value={formatPrice(summary.totalRevenue)} />
             <Metric label="Refunds" value={formatPrice(summary.refundTotal)} />

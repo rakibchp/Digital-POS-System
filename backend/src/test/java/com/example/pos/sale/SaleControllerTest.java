@@ -4,6 +4,7 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -11,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.time.LocalDate;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +38,55 @@ class SaleControllerTest {
 	void requiresAuthenticationToReadSales() throws Exception {
 		mockMvc.perform(get("/api/v1/sales"))
 				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void requiresAuthenticationToReadSalesReports() throws Exception {
+		mockMvc.perform(get("/api/v1/sales/report")
+				.param("from", "2026-11-01")
+				.param("to", "2026-11-04"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void returnsDateRangeSalesReportToAuthenticatedUsers() throws Exception {
+		given(saleService.findReport(LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-04")))
+				.willReturn(new SalesReportResponse(
+						LocalDate.parse("2026-11-01"),
+						LocalDate.parse("2026-11-04"),
+						List.of()));
+
+		mockMvc.perform(get("/api/v1/sales/report")
+				.with(user("cashier"))
+				.param("from", "2026-11-01")
+				.param("to", "2026-11-04"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.from").value("2026-11-01"))
+				.andExpect(jsonPath("$.to").value("2026-11-04"))
+				.andExpect(jsonPath("$.sales").isArray());
+	}
+
+	@Test
+	void rejectsMalformedReportDates() throws Exception {
+		mockMvc.perform(get("/api/v1/sales/report")
+				.with(user("cashier"))
+				.param("from", "not-a-date")
+				.param("to", "2026-11-04"))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void rejectsReportRangesLongerThan31Days() throws Exception {
+		given(saleService.findReport(LocalDate.parse("2026-10-01"), LocalDate.parse("2026-11-04")))
+				.willThrow(new SalesReportRangeException());
+
+		mockMvc.perform(get("/api/v1/sales/report")
+				.with(user("cashier"))
+				.param("from", "2026-10-01")
+				.param("to", "2026-11-04"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(
+						"Report dates must be ordered and cover no more than 31 days"));
 	}
 
 	@Test

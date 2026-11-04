@@ -14,6 +14,9 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -140,6 +143,39 @@ class SaleServiceTest {
 						PaymentMethod.CASH,
 						null,
 						List.of(new CreateSaleRequest.SaleLineRequest(UUID.randomUUID(), 1)))));
+	}
+
+	@Test
+	void returnsSalesWithinInclusiveUtcDateRange() {
+		LocalDate from = LocalDate.parse("2026-11-01");
+		LocalDate to = LocalDate.parse("2026-11-03");
+		given(saleRepository
+				.findByCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+						Instant.parse("2026-11-01T00:00:00Z"),
+						Instant.parse("2026-11-04T00:00:00Z")))
+				.willReturn(List.of());
+
+		SalesReportResponse result = saleService.findReport(from, to);
+
+		assertEquals(from, result.from());
+		assertEquals(to, result.to());
+		assertEquals(List.of(), result.sales());
+		verify(saleRepository)
+				.findByCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+						from.atStartOfDay().toInstant(ZoneOffset.UTC),
+						to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC));
+	}
+
+	@Test
+	void rejectsInvalidAndOverlongReportRanges() {
+		assertThrows(
+				SalesReportRangeException.class,
+				() -> saleService.findReport(
+						LocalDate.parse("2026-11-04"), LocalDate.parse("2026-11-01")));
+		assertThrows(
+				SalesReportRangeException.class,
+				() -> saleService.findReport(
+						LocalDate.parse("2026-10-01"), LocalDate.parse("2026-11-01")));
 	}
 
 	@Test

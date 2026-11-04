@@ -1,6 +1,7 @@
 package com.example.pos.sale;
 
 import java.util.List;
+import java.time.LocalDate;
 
 import jakarta.validation.Valid;
 
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -28,6 +31,13 @@ public class SaleController {
 	@GetMapping
 	public List<SaleResponse> findRecent() {
 		return saleService.findRecent();
+	}
+
+	@GetMapping("/report")
+	public SalesReportResponse findReport(
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+		return saleService.findReport(from, to);
 	}
 
 	@PostMapping
@@ -81,6 +91,12 @@ public class SaleController {
 	@ExceptionHandler(SaleAlreadyReturnedException.class)
 	@ResponseStatus(HttpStatus.CONFLICT)
 	public SaleError saleAlreadyReturned(SaleAlreadyReturnedException exception) {
+		return new SaleError(exception.getMessage());
+	}
+
+	@ExceptionHandler(SalesReportRangeException.class)
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	public SaleError invalidReportRange(SalesReportRangeException exception) {
 		return new SaleError(exception.getMessage());
 	}
 
