@@ -5,13 +5,14 @@ import { BackendStatusCard } from "@/features/backend-status/backend-status-card
 import { LoginForm } from "@/features/auth/login-form";
 import { InventoryManagement } from "@/features/inventory/inventory-management";
 import { ProductCatalog } from "@/features/products/product-catalog";
+import { Checkout } from "@/features/sales/checkout";
 
 export function PosWorkspace() {
   const [authenticated, setAuthenticated] = useState<{
     username: string;
     authorization: string;
   } | null>(null);
-  const [section, setSection] = useState<"products" | "inventory">("products");
+  const [section, setSection] = useState<"checkout" | "products" | "inventory">("checkout");
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 py-12 text-white sm:px-6">
@@ -39,6 +40,18 @@ export function PosWorkspace() {
         {authenticated ? (
           <>
             <div className="mb-4 flex w-full max-w-5xl items-center gap-2 rounded-xl border border-white/10 bg-white/4 p-1.5">
+              <button
+                aria-current={section === "checkout" ? "page" : undefined}
+                className={`h-10 flex-1 rounded-lg px-4 text-sm font-medium transition ${
+                  section === "checkout"
+                    ? "bg-emerald-300 text-slate-950"
+                    : "text-slate-300 hover:bg-white/8"
+                }`}
+                onClick={() => setSection("checkout")}
+                type="button"
+              >
+                Checkout
+              </button>
               <button
                 aria-current={section === "products" ? "page" : undefined}
                 className={`h-10 flex-1 rounded-lg px-4 text-sm font-medium transition ${
@@ -74,7 +87,12 @@ export function PosWorkspace() {
                 Sign out
               </button>
             </div>
-            {section === "products" ? (
+            {section === "checkout" ? (
+              <Checkout
+                authorization={authenticated.authorization}
+                onSignOut={() => setAuthenticated(null)}
+              />
+            ) : section === "products" ? (
               <ProductCatalog
                 authorization={authenticated.authorization}
                 onSignOut={() => setAuthenticated(null)}

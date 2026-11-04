@@ -30,7 +30,7 @@ public class InventoryMovement {
 	protected InventoryMovement() {
 	}
 
-	InventoryMovement(UUID productId, int quantityChange, String reason) {
+	public InventoryMovement(UUID productId, int quantityChange, String reason) {
 		this.id = UUID.randomUUID();
 		this.productId = productId;
 		this.quantityChange = quantityChange;

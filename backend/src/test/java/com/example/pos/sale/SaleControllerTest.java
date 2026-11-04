@@ -1,0 +1,92 @@
+package com.example.pos.sale;
+
+import static org.mockito.BDDMockito.given;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import com.example.pos.config.SecurityConfiguration;
+
+@WebMvcTest(SaleController.class)
+@Import(SecurityConfiguration.class)
+class SaleControllerTest {
+
+	@Autowired
+	private MockMvc mockMvc;
+
+	@MockitoBean
+	private SaleService saleService;
+
+	@Test
+	void requiresAuthenticationToReadSales() throws Exception {
+		mockMvc.perform(get("/api/v1/sales"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void createsAuthenticatedSale() throws Exception {
+		UUID saleId = UUID.fromString("93dd31a7-6e6c-4c4a-8982-d0774203a67e");
+		UUID productId = UUID.fromString("6a427584-9c4a-4f4f-82fa-61b0bac118ea");
+		given(saleService.create(org.mockito.ArgumentMatchers.any()))
+				.willReturn(new SaleResponse(
+						saleId,
+						new BigDecimal("7.00"),
+						Instant.parse("2026-11-04T00:00:00Z"),
+						List.of(new SaleItemResponse(
+								productId, "COFFEE-01", "Coffee",
+								new BigDecimal("3.50"), 2, new BigDecimal("7.00")))));
+
+		mockMvc.perform(post("/api/v1/sales")
+				.with(user("cashier"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"items":[{"productId":"6a427584-9c4a-4f4f-82fa-61b0bac118ea","quantity":2}]}
+						"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.totalAmount").value(7.00))
+				.andExpect(jsonPath("$.items[0].sku").value("COFFEE-01"));
+	}
+
+	@Test
+	void rejectsAnEmptySale() throws Exception {
+		mockMvc.perform(post("/api/v1/sales")
+				.with(user("cashier"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"items":[]}
+						"""))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void reportsInsufficientStockAsConflict() throws Exception {
+		given(saleService.create(org.mockito.ArgumentMatchers.any()))
+				.willThrow(new InsufficientSaleStockException(
+						UUID.fromString("6a427584-9c4a-4f4f-82fa-61b0bac118ea"), 1, 2));
+
+		mockMvc.perform(post("/api/v1/sales")
+				.with(user("cashier"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"items":[{"productId":"6a427584-9c4a-4f4f-82fa-61b0bac118ea","quantity":2}]}
+						"""))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.message").value(
+						"Product '6a427584-9c4a-4f4f-82fa-61b0bac118ea' has 1 units available; 2 requested"));
+	}
+}

@@ -3,8 +3,10 @@ import {
   adjustInventory,
   authenticate,
   createProduct,
+  createSale,
   getInventory,
   getProducts,
+  getSales,
 } from "./backend";
 
 describe("backend API client", () => {
@@ -117,6 +119,45 @@ describe("backend API client", () => {
           direction: "RECEIVE",
           quantity: 3,
           reason: "Supplier delivery",
+        }),
+      }),
+    );
+  });
+
+  it("loads recent sales and submits checkout items", async () => {
+    const sale = {
+      id: "sale-1",
+      totalAmount: 7,
+      createdAt: "2026-11-04T00:00:00Z",
+      items: [
+        {
+          productId: "product-1",
+          sku: "COFFEE-01",
+          productName: "Coffee",
+          unitPrice: 3.5,
+          quantity: 2,
+          lineTotal: 7,
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => [sale] })
+      .mockResolvedValueOnce({ ok: true, json: async () => sale });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getSales("Basic token")).resolves.toEqual([sale]);
+    await expect(
+      createSale("Basic token", {
+        items: [{ productId: "product-1", quantity: 2 }],
+      }),
+    ).resolves.toEqual(sale);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/backend/sales",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          items: [{ productId: "product-1", quantity: 2 }],
         }),
       }),
     );
