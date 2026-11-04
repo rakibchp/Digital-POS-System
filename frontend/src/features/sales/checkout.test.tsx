@@ -66,6 +66,9 @@ describe("Checkout", () => {
       paymentMethod: "CASH",
       amountTendered: 10,
       changeDue: 3,
+      returnedAt: null,
+      returnReason: null,
+      refundAmount: null,
       items: [
         {
           productId: product.id,
@@ -157,6 +160,9 @@ describe("Checkout", () => {
       paymentMethod: "CARD",
       amountTendered: 3.5,
       changeDue: 0,
+      returnedAt: null,
+      returnReason: null,
+      refundAmount: null,
       items: [
         {
           productId: product.id,

@@ -12,6 +12,8 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -198,6 +200,73 @@ class SaleServiceTest {
 		assertEquals(PaymentMethod.CARD, result.paymentMethod());
 		assertEquals(new BigDecimal("3.50"), result.amountTendered());
 		assertEquals(BigDecimal.ZERO, result.changeDue());
+	}
+
+	@Test
+	void returnsSaleAndRestocksAllItemsOnce() {
+		UUID saleId = UUID.randomUUID();
+		UUID productId = UUID.randomUUID();
+		Sale sale = new Sale(
+				List.of(new Sale.SaleLineSnapshot(
+						productId, "COFFEE-01", "Coffee",
+						new BigDecimal("3.50"), 2, new BigDecimal("7.00"))),
+				null,
+				PaymentMethod.CASH,
+				new BigDecimal("10.00"),
+				new BigDecimal("3.00"));
+		Product product = mock(Product.class);
+		AtomicReference<List<InventoryMovement>> movements = new AtomicReference<>();
+		given(saleRepository.findByIdForUpdate(saleId)).willReturn(Optional.of(sale));
+		given(productRepository.findByIdForUpdate(productId)).willReturn(Optional.of(product));
+		given(inventoryRepository.saveAll(any(Iterable.class)))
+				.willAnswer(invocation -> {
+					Iterable<InventoryMovement> entries = invocation.getArgument(0);
+					List<InventoryMovement> saved = new ArrayList<>();
+					entries.forEach(saved::add);
+					movements.set(saved);
+					return saved;
+				});
+
+		SaleResponse response = saleService.returnSale(
+				saleId, new SaleReturnRequest("  Customer returned item  "));
+
+		assertEquals(new BigDecimal("7.00"), response.refundAmount());
+		assertEquals("Customer returned item", response.returnReason());
+		assertEquals(sale.getId(), response.id());
+		verify(inventoryRepository).saveAll(any(Iterable.class));
+		assertEquals(1, movements.get().size());
+		assertEquals(2, movements.get().getFirst().getQuantityChange());
+		assertEquals("Return " + sale.getId() + ": Customer returned item",
+				movements.get().getFirst().getReason());
+	}
+
+	@Test
+	void rejectsDuplicateSaleReturn() {
+		UUID saleId = UUID.randomUUID();
+		Sale sale = new Sale(
+				List.of(new Sale.SaleLineSnapshot(
+						UUID.randomUUID(), "COFFEE-01", "Coffee",
+						new BigDecimal("3.50"), 1, new BigDecimal("3.50"))),
+				null,
+				PaymentMethod.CASH,
+				new BigDecimal("3.50"),
+				BigDecimal.ZERO);
+		sale.markReturned("Already returned");
+		given(saleRepository.findByIdForUpdate(saleId)).willReturn(Optional.of(sale));
+
+		assertThrows(
+				SaleAlreadyReturnedException.class,
+				() -> saleService.returnSale(saleId, new SaleReturnRequest("Another attempt")));
+	}
+
+	@Test
+	void rejectsReturnForMissingSale() {
+		UUID saleId = UUID.randomUUID();
+		given(saleRepository.findByIdForUpdate(saleId)).willReturn(Optional.empty());
+
+		assertThrows(
+				SaleNotFoundException.class,
+				() -> saleService.returnSale(saleId, new SaleReturnRequest("Customer return")));
 	}
 
 	private static Product product(UUID id, String sku, String name, String price) {

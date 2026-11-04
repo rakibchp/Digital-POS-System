@@ -9,6 +9,7 @@ import {
   getCustomers,
   getProducts,
   getSales,
+  returnSale,
 } from "./backend";
 
 describe("backend API client", () => {
@@ -166,6 +167,9 @@ describe("backend API client", () => {
       paymentMethod: "CASH",
       amountTendered: 7,
       changeDue: 0,
+      returnedAt: null,
+      returnReason: null,
+      refundAmount: null,
       items: [
         {
           productId: "product-1",
@@ -177,10 +181,17 @@ describe("backend API client", () => {
         },
       ],
     };
+    const returnedSale = {
+      ...sale,
+      returnedAt: "2026-11-04T01:00:00Z",
+      returnReason: "Customer return",
+      refundAmount: 7,
+    };
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => [sale] })
-      .mockResolvedValueOnce({ ok: true, json: async () => sale });
+      .mockResolvedValueOnce({ ok: true, json: async () => sale })
+      .mockResolvedValueOnce({ ok: true, json: async () => returnedSale });
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(getSales("Basic token")).resolves.toEqual([sale]);
@@ -200,6 +211,16 @@ describe("backend API client", () => {
           amountTendered: 7,
           items: [{ productId: "product-1", quantity: 2 }],
         }),
+      }),
+    );
+    await expect(
+      returnSale("Basic token", "sale-1", { reason: "Customer return" }),
+    ).resolves.toEqual(returnedSale);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/backend/sales/sale-1/return",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Customer return" }),
       }),
     );
   });

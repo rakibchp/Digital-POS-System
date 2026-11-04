@@ -47,6 +47,15 @@ public class Sale {
 	@Column(name = "change_due", precision = 20, scale = 2)
 	private BigDecimal changeDue;
 
+	@Column(name = "returned_at")
+	private Instant returnedAt;
+
+	@Column(name = "return_reason", length = 150)
+	private String returnReason;
+
+	@Column(name = "refund_amount", precision = 20, scale = 2)
+	private BigDecimal refundAmount;
+
 	@OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<SaleItem> items = new ArrayList<>();
 
@@ -101,6 +110,24 @@ public class Sale {
 
 	public BigDecimal getChangeDue() {
 		return changeDue;
+	}
+
+	public Instant getReturnedAt() {
+		return returnedAt;
+	}
+
+	public String getReturnReason() {
+		return returnReason;
+	}
+
+	public BigDecimal getRefundAmount() {
+		return refundAmount;
+	}
+
+	public void markReturned(String reason) {
+		this.returnedAt = Instant.now();
+		this.returnReason = reason;
+		this.refundAmount = this.totalAmount;
 	}
 
 	record SaleLineSnapshot(

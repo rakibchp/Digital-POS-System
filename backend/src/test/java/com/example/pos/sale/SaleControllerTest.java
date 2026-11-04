@@ -52,6 +52,9 @@ class SaleControllerTest {
 						PaymentMethod.CASH,
 						new BigDecimal("7.00"),
 						BigDecimal.ZERO,
+						null,
+						null,
+						null,
 						List.of(new SaleItemResponse(
 								productId, "COFFEE-01", "Coffee",
 								new BigDecimal("3.50"), 2, new BigDecimal("7.00")))));
@@ -124,5 +127,57 @@ class SaleControllerTest {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value(
 						"Cash tendered 5.00 is less than sale total 7.00"));
+	}
+
+	@Test
+	void requiresAuthenticationToReturnASale() throws Exception {
+		mockMvc.perform(post("/api/v1/sales/93dd31a7-6e6c-4c4a-8982-d0774203a67e/return")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"reason":"Customer returned item"}
+						"""))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void returnsASaleForAuthenticatedUsers() throws Exception {
+		UUID saleId = UUID.fromString("93dd31a7-6e6c-4c4a-8982-d0774203a67e");
+		given(saleService.returnSale(
+				org.mockito.ArgumentMatchers.eq(saleId),
+				org.mockito.ArgumentMatchers.any()))
+				.willReturn(new SaleResponse(
+						saleId,
+						new BigDecimal("7.00"),
+						Instant.parse("2026-11-04T00:00:00Z"),
+						null,
+						null,
+						PaymentMethod.CASH,
+						new BigDecimal("7.00"),
+						BigDecimal.ZERO,
+						Instant.parse("2026-11-04T01:00:00Z"),
+						"Customer returned item",
+						new BigDecimal("7.00"),
+						List.of()));
+
+		mockMvc.perform(post("/api/v1/sales/" + saleId + "/return")
+				.with(user("cashier"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"reason":"Customer returned item"}
+						"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.refundAmount").value(7.00))
+				.andExpect(jsonPath("$.returnReason").value("Customer returned item"));
+	}
+
+	@Test
+	void rejectsBlankReturnReason() throws Exception {
+		mockMvc.perform(post("/api/v1/sales/93dd31a7-6e6c-4c4a-8982-d0774203a67e/return")
+				.with(user("cashier"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"reason":"  "}
+						"""))
+				.andExpect(status().isBadRequest());
 	}
 }

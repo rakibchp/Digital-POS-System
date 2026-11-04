@@ -72,6 +72,9 @@ export interface Sale {
   paymentMethod: PaymentMethod | null;
   amountTendered: number | null;
   changeDue: number | null;
+  returnedAt: string | null;
+  returnReason: string | null;
+  refundAmount: number | null;
   items: SaleItem[];
 }
 
@@ -80,6 +83,10 @@ export interface CreateSaleInput {
   paymentMethod: PaymentMethod;
   amountTendered?: number;
   items: Array<{ productId: string; quantity: number }>;
+}
+
+export interface SaleReturnInput {
+  reason: string;
 }
 
 export class ApiError extends Error {
@@ -254,6 +261,12 @@ function isSale(value: unknown): value is Sale {
     (typeof value.amountTendered === "number" || value.amountTendered === null) &&
     "changeDue" in value &&
     (typeof value.changeDue === "number" || value.changeDue === null) &&
+    "returnedAt" in value &&
+    (typeof value.returnedAt === "string" || value.returnedAt === null) &&
+    "returnReason" in value &&
+    (typeof value.returnReason === "string" || value.returnReason === null) &&
+    "refundAmount" in value &&
+    (typeof value.refundAmount === "number" || value.refundAmount === null) &&
     "items" in value &&
     Array.isArray(value.items) &&
     value.items.every(isSaleItem)
@@ -370,6 +383,26 @@ export async function createSale(
   });
   if (!isSale(payload)) {
     throw new ApiError("Backend returned an invalid sale", 502);
+  }
+  return payload;
+}
+
+export async function returnSale(
+  authorization: string,
+  saleId: string,
+  input: SaleReturnInput,
+): Promise<Sale> {
+  const payload = await request(
+    `/api/backend/sales/${encodeURIComponent(saleId)}/return`,
+    authorization,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!isSale(payload)) {
+    throw new ApiError("Backend returned an invalid sale return", 502);
   }
   return payload;
 }

@@ -111,6 +111,35 @@ public class SaleService {
 				.toList();
 	}
 
+	@Transactional
+	public SaleResponse returnSale(UUID saleId, SaleReturnRequest request) {
+		Sale sale = saleRepository.findByIdForUpdate(saleId)
+				.orElseThrow(() -> new SaleNotFoundException(saleId));
+		if (sale.getReturnedAt() != null) {
+			throw new SaleAlreadyReturnedException(saleId);
+		}
+
+		sale.getItems().stream()
+				.map(SaleItem::getProductId)
+				.distinct()
+				.sorted(Comparator.comparing(UUID::toString))
+				.forEach(productId -> {
+					productRepository.findByIdForUpdate(productId)
+							.orElseThrow(() -> new SaleProductNotFoundException(productId));
+				});
+
+		String reason = request.reason().trim();
+		sale.markReturned(reason);
+		saleRepository.save(sale);
+		inventoryRepository.saveAll(sale.getItems().stream()
+				.map(item -> new InventoryMovement(
+						item.getProductId(),
+						item.getQuantity(),
+						"Return " + sale.getId() + ": " + reason))
+				.toList());
+		return toResponse(sale);
+	}
+
 	private static SaleResponse toResponse(Sale sale) {
 		return new SaleResponse(
 				sale.getId(),
@@ -121,6 +150,9 @@ public class SaleService {
 				sale.getPaymentMethod(),
 				sale.getAmountTendered(),
 				sale.getChangeDue(),
+				sale.getReturnedAt(),
+				sale.getReturnReason(),
+				sale.getRefundAmount(),
 				sale.getItems().stream()
 						.map(item -> new SaleItemResponse(
 								item.getProductId(),

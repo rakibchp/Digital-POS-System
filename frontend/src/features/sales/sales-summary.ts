@@ -3,6 +3,7 @@ import type { Sale } from "@/lib/api/backend";
 export interface SalesSummary {
   saleCount: number;
   totalRevenue: number;
+  refundTotal: number;
   averageSale: number;
   itemsSold: number;
   bestSellers: Array<{
@@ -16,10 +17,21 @@ export interface SalesSummary {
 
 export function summarizeSales(sales: Sale[]): SalesSummary {
   const products = new Map<string, SalesSummary["bestSellers"][number]>();
-  const totalRevenue = sales.reduce((total, sale) => total + sale.totalAmount, 0);
+  const activeSales = sales.filter((sale) => sale.returnedAt === null);
+  const refundTotal = sales.reduce(
+    (total, sale) => total + (sale.refundAmount ?? 0),
+    0,
+  );
+  const totalRevenue = activeSales.reduce(
+    (total, sale) => total + sale.totalAmount,
+    0,
+  );
   let itemsSold = 0;
 
   for (const sale of sales) {
+    if (sale.returnedAt !== null) {
+      continue;
+    }
     for (const item of sale.items) {
       itemsSold += item.quantity;
       const current = products.get(item.productId);
@@ -36,7 +48,8 @@ export function summarizeSales(sales: Sale[]): SalesSummary {
   return {
     saleCount: sales.length,
     totalRevenue,
-    averageSale: sales.length === 0 ? 0 : totalRevenue / sales.length,
+    refundTotal,
+    averageSale: activeSales.length === 0 ? 0 : totalRevenue / activeSales.length,
     itemsSold,
     bestSellers: [...products.values()]
       .sort((left, right) => right.quantity - left.quantity || right.revenue - left.revenue)

@@ -14,5 +14,8 @@ public record SaleResponse(
 		PaymentMethod paymentMethod,
 		BigDecimal amountTendered,
 		BigDecimal changeDue,
+		Instant returnedAt,
+		String returnReason,
+		BigDecimal refundAmount,
 		List<SaleItemResponse> items) {
 }

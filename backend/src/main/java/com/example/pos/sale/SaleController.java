@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,6 +33,13 @@ public class SaleController {
 	@PostMapping
 	public ResponseEntity<SaleResponse> create(@Valid @RequestBody CreateSaleRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED).body(saleService.create(request));
+	}
+
+	@PostMapping("/{saleId}/return")
+	public SaleResponse returnSale(
+			@PathVariable java.util.UUID saleId,
+			@Valid @RequestBody SaleReturnRequest request) {
+		return saleService.returnSale(saleId, request);
 	}
 
 	@ExceptionHandler(InsufficientSaleStockException.class)
@@ -61,6 +69,18 @@ public class SaleController {
 	@ExceptionHandler(InsufficientPaymentException.class)
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
 	public SaleError insufficientPayment(InsufficientPaymentException exception) {
+		return new SaleError(exception.getMessage());
+	}
+
+	@ExceptionHandler(SaleNotFoundException.class)
+	@ResponseStatus(HttpStatus.NOT_FOUND)
+	public SaleError saleNotFound(SaleNotFoundException exception) {
+		return new SaleError(exception.getMessage());
+	}
+
+	@ExceptionHandler(SaleAlreadyReturnedException.class)
+	@ResponseStatus(HttpStatus.CONFLICT)
+	public SaleError saleAlreadyReturned(SaleAlreadyReturnedException exception) {
 		return new SaleError(exception.getMessage());
 	}
 

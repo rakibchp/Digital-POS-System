@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ApiError, getSales, type Sale } from "@/lib/api/backend";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { ApiError, getSales, returnSale, type Sale } from "@/lib/api/backend";
 import { summarizeSales } from "./sales-summary";
 import { SaleReceipt } from "./sale-receipt";
 
@@ -29,6 +29,11 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
+  const [returningSale, setReturningSale] = useState<Sale | null>(null);
+  const [returnReason, setReturnReason] = useState("");
+  const [returnError, setReturnError] = useState("");
+  const [returning, setReturning] = useState(false);
+  const [notice, setNotice] = useState("");
   const summary = useMemo(() => summarizeSales(sales), [sales]);
 
   const loadSales = useCallback(async () => {
@@ -51,6 +56,42 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
     }
   }, [authorization, onSignOut]);
 
+  async function submitReturn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!returningSale || returning) {
+      return;
+    }
+
+    setReturning(true);
+    setReturnError("");
+    setNotice("");
+    try {
+      const updatedSale = await returnSale(authorization, returningSale.id, {
+        reason: returnReason.trim(),
+      });
+      setSales((current) =>
+        current.map((sale) => (sale.id === updatedSale.id ? updatedSale : sale)),
+      );
+      setReturningSale(null);
+      setReturnReason("");
+      setNotice(
+        `Return recorded for ${formatPrice(updatedSale.refundAmount ?? updatedSale.totalAmount)}. Refund the customer manually.`,
+      );
+    } catch (requestError) {
+      if (requestError instanceof ApiError && requestError.status === 401) {
+        onSignOut();
+        return;
+      }
+      setReturnError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to record the return.",
+      );
+    } finally {
+      setReturning(false);
+    }
+  }
+
   useEffect(() => {
     void Promise.resolve().then(loadSales);
   }, [loadSales]);
@@ -64,7 +105,7 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
             Sales overview
           </h2>
           <p className="mt-1 text-sm text-slate-400">
-            Summary and product rankings from the latest 50 transactions.
+            Net sales, refunds, and product rankings from the latest 50 transactions.
           </p>
         </div>
         <button
@@ -95,12 +136,19 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
         </p>
       ) : !error && (
         <>
-          <div className="grid gap-3 pt-6 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 pt-6 sm:grid-cols-2 xl:grid-cols-5">
             <Metric label="Sales recorded" value={summary.saleCount.toLocaleString()} />
-            <Metric label="Revenue" value={formatPrice(summary.totalRevenue)} />
+            <Metric label="Net revenue" value={formatPrice(summary.totalRevenue)} />
+            <Metric label="Refunds" value={formatPrice(summary.refundTotal)} />
             <Metric label="Average sale" value={formatPrice(summary.averageSale)} />
             <Metric label="Items sold" value={summary.itemsSold.toLocaleString()} />
           </div>
+
+          {notice && (
+            <p className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200" role="status">
+              {notice}
+            </p>
+          )}
 
           {sales.length === 0 ? (
             <div className="mt-6 rounded-xl border border-dashed border-white/15 px-5 py-10 text-center">
@@ -114,21 +162,22 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
               <div>
                 <h3 className="mb-4 font-semibold text-white">Recent transactions</h3>
                 <div className="overflow-x-auto rounded-xl border border-white/10">
-                  <table className="w-full min-w-[34rem] text-left text-sm">
+                  <table className="w-full min-w-[52rem] text-left text-sm">
                     <thead className="bg-white/5 text-xs uppercase tracking-wide text-slate-400">
                       <tr>
                         <th className="px-4 py-3 font-medium">Transaction</th>
                         <th className="px-4 py-3 font-medium">Date</th>
                         <th className="px-4 py-3 font-medium">Customer</th>
                         <th className="px-4 py-3 font-medium">Payment</th>
+                        <th className="px-4 py-3 font-medium">Status</th>
                         <th className="px-4 py-3 text-right font-medium">Items</th>
                         <th className="px-4 py-3 text-right font-medium">Total</th>
-                        <th className="px-4 py-3 text-right font-medium">Receipt</th>
+                        <th className="px-4 py-3 text-right font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/8">
                       {sales.map((sale) => (
-                        <tr className="text-slate-200" key={sale.id}>
+                        <tr className={sale.returnedAt ? "text-slate-400" : "text-slate-200"} key={sale.id}>
                           <td className="px-4 py-3 font-mono text-xs text-slate-300">
                             {sale.id.slice(0, 8)}
                           </td>
@@ -142,6 +191,17 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
                             {sale.paymentMethod
                               ? `${sale.paymentMethod.charAt(0)}${sale.paymentMethod.slice(1).toLowerCase()}`
                               : "Not recorded"}
+                          </td>
+                          <td className="px-4 py-3">
+                            {sale.returnedAt ? (
+                              <span className="rounded-full bg-rose-300/10 px-2 py-1 text-xs text-rose-200">
+                                Returned
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-emerald-300/10 px-2 py-1 text-xs text-emerald-200">
+                                Complete
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-right tabular-nums">
                             {sale.items.reduce((quantity, item) => quantity + item.quantity, 0)}
@@ -157,6 +217,19 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
                             >
                               View
                             </button>
+                            {!sale.returnedAt && (
+                              <button
+                                className="ml-2 rounded-lg border border-rose-300/20 px-3 py-1.5 text-xs font-medium text-rose-200 hover:bg-rose-300/10"
+                                onClick={() => {
+                                  setReturningSale(sale);
+                                  setReturnReason("");
+                                  setReturnError("");
+                                }}
+                                type="button"
+                              >
+                                Return
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -217,6 +290,69 @@ export function SalesDashboard({ authorization, onSignOut }: SalesDashboardProps
             onClose={() => setReceiptSale(null)}
             sale={receiptSale}
           />
+        </div>
+      )}
+      {returningSale && (
+        <div
+          aria-label="Record sale return"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4"
+          role="dialog"
+        >
+          <form
+            className="w-full max-w-md space-y-4 rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl"
+            onSubmit={submitReturn}
+          >
+            <div>
+              <p className="text-sm font-medium text-rose-200">Full sale return</p>
+              <h3 className="mt-1 text-xl font-semibold text-white">
+                Record return
+              </h3>
+              <p className="mt-2 text-sm text-slate-300">
+                This restocks all {returningSale.items.length} sale line
+                {returningSale.items.length === 1 ? "" : "s"} and records a refund
+                of {formatPrice(returningSale.totalAmount)}.
+              </p>
+              <p className="mt-2 text-xs text-amber-200">
+                The POS records the refund only. Return payment to the customer
+                manually using the original payment method.
+              </p>
+            </div>
+            {returnError && (
+              <p className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-200" role="alert">
+                {returnError}
+              </p>
+            )}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-200" htmlFor="return-reason">
+                Reason
+              </label>
+              <textarea
+                className="min-h-24 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/20"
+                id="return-reason"
+                maxLength={150}
+                onChange={(event) => setReturnReason(event.target.value)}
+                required
+                value={returnReason}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                className="h-10 rounded-lg border border-white/15 px-4 text-sm font-medium text-slate-200 hover:bg-white/10"
+                onClick={() => setReturningSale(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="h-10 rounded-lg bg-rose-300 px-4 text-sm font-semibold text-slate-950 hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={returning || !returnReason.trim()}
+                type="submit"
+              >
+                {returning ? "Recording…" : "Record return"}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </section>

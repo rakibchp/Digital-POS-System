@@ -27,7 +27,7 @@ export function SaleReceipt({ sale, onClose }: SaleReceiptProps) {
   return (
     <section
       aria-label={`Receipt ${sale.id.slice(0, 8)}`}
-      className="sale-receipt w-full max-w-sm rounded-xl border border-white/10 bg-white p-5 text-slate-950 shadow-xl sm:p-6"
+      className="sale-receipt printable-receipt w-full max-w-sm rounded-xl border border-white/10 bg-white p-5 text-slate-950 shadow-xl sm:p-6"
     >
       <header className="text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
@@ -99,7 +99,30 @@ export function SaleReceipt({ sale, onClose }: SaleReceiptProps) {
         )}
       </dl>
 
-      <p className="mt-5 text-center text-xs text-slate-500">Thank you for your purchase.</p>
+      {sale.returnedAt && (
+        <div className="mt-4 border-t border-dashed border-slate-300 pt-3 text-sm">
+          <p className="font-semibold uppercase tracking-wide text-rose-700">Returned</p>
+          <p className="mt-1 text-slate-600">
+            Refund recorded: {formatPrice(sale.refundAmount ?? sale.totalAmount)}
+          </p>
+          <time className="mt-1 block text-xs text-slate-500" dateTime={sale.returnedAt}>
+            Returned on{" "}
+            {new Intl.DateTimeFormat(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(sale.returnedAt))}
+          </time>
+          {sale.returnReason && (
+            <p className="mt-1 text-xs text-slate-500">Reason: {sale.returnReason}</p>
+          )}
+        </div>
+      )}
+
+      <p className="mt-5 text-center text-xs text-slate-500">
+        {sale.returnedAt
+          ? "Return recorded. Refund must be issued manually."
+          : "Thank you for your purchase."}
+      </p>
 
       <div className="receipt-actions mt-5 flex gap-2">
         <button
