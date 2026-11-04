@@ -4,6 +4,7 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -44,12 +45,14 @@ class InventoryControllerTest {
 						UUID.fromString("6a427584-9c4a-4f4f-82fa-61b0bac118ea"),
 						"TEA-01",
 						"Green tea",
-						12)));
+						12,
+						4)));
 
 		mockMvc.perform(get("/api/v1/inventory").with(user("admin")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$[0].sku").value("TEA-01"))
-				.andExpect(jsonPath("$[0].quantityOnHand").value(12));
+				.andExpect(jsonPath("$[0].quantityOnHand").value(12))
+				.andExpect(jsonPath("$[0].reorderPoint").value(4));
 	}
 
 	@Test
@@ -102,5 +105,35 @@ class InventoryControllerTest {
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.message").value(
 						"Cannot remove 2 units; only 1 are currently in stock"));
+	}
+
+	@Test
+	void updatesAProductReorderPoint() throws Exception {
+		UUID productId = UUID.fromString("6a427584-9c4a-4f4f-82fa-61b0bac118ea");
+		given(inventoryService.updateReorderPoint(
+				org.mockito.ArgumentMatchers.eq(productId),
+				org.mockito.ArgumentMatchers.any()))
+				.willReturn(new InventoryItemResponse(productId, "TEA-01", "Green tea", 3, 5));
+
+		mockMvc.perform(put("/api/v1/inventory/{productId}/reorder-point", productId)
+				.with(user("admin"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"reorderPoint":5}
+						"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.reorderPoint").value(5))
+				.andExpect(jsonPath("$.quantityOnHand").value(3));
+	}
+
+	@Test
+	void rejectsNegativeReorderPoints() throws Exception {
+		mockMvc.perform(put("/api/v1/inventory/{productId}/reorder-point", UUID.randomUUID())
+				.with(user("admin"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"reorderPoint":-1}
+						"""))
+				.andExpect(status().isBadRequest());
 	}
 }

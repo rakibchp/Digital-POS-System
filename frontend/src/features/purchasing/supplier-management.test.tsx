@@ -74,6 +74,7 @@ describe("SupplierManagement", () => {
         sku: product.sku,
         name: product.name,
         quantityOnHand: 5,
+        reorderPoint: 2,
       },
     ]);
     vi.mocked(getPurchaseReceipts).mockResolvedValue([]);

@@ -74,6 +74,7 @@ export interface InventoryItem {
   sku: string;
   name: string;
   quantityOnHand: number;
+  reorderPoint: number;
 }
 
 export interface InventoryAdjustmentInput {
@@ -294,7 +295,9 @@ function isInventoryItem(value: unknown): value is InventoryItem {
     "name" in value &&
     typeof value.name === "string" &&
     "quantityOnHand" in value &&
-    typeof value.quantityOnHand === "number"
+    typeof value.quantityOnHand === "number" &&
+    "reorderPoint" in value &&
+    typeof value.reorderPoint === "number"
   );
 }
 
@@ -513,6 +516,26 @@ export async function adjustInventory(
   );
   if (!isInventoryAdjustment(payload)) {
     throw new ApiError("Backend returned an invalid inventory adjustment", 502);
+  }
+  return payload;
+}
+
+export async function updateInventoryReorderPoint(
+  authorization: string,
+  productId: string,
+  reorderPoint: number,
+): Promise<InventoryItem> {
+  const payload = await request(
+    `/api/backend/inventory/${encodeURIComponent(productId)}/reorder-point`,
+    authorization,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reorderPoint }),
+    },
+  );
+  if (!isInventoryItem(payload)) {
+    throw new ApiError("Backend returned an invalid inventory item", 502);
   }
   return payload;
 }

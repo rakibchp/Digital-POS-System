@@ -10,10 +10,10 @@ public interface InventoryRepository extends JpaRepository<InventoryMovement, UU
 
 	@Query("""
 			select new com.example.pos.inventory.InventoryItemResponse(
-				p.id, p.sku, p.name, coalesce(sum(m.quantityChange), 0))
+				p.id, p.sku, p.name, coalesce(sum(m.quantityChange), 0), p.reorderPoint)
 			from Product p
 			left join InventoryMovement m on m.productId = p.id
-			group by p.id, p.sku, p.name
+			group by p.id, p.sku, p.name, p.reorderPoint
 			order by p.name asc, p.sku asc
 			""")
 	List<InventoryItemResponse> findInventoryItems();

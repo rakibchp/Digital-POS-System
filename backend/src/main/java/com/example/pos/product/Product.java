@@ -25,6 +25,9 @@ public class Product {
 	@Column(nullable = false, precision = 12, scale = 2)
 	private BigDecimal price;
 
+	@Column(name = "reorder_point", nullable = false)
+	private int reorderPoint;
+
 	@Column(nullable = false, updatable = false)
 	private Instant createdAt;
 
@@ -53,6 +56,14 @@ public class Product {
 
 	public BigDecimal getPrice() {
 		return price;
+	}
+
+	public int getReorderPoint() {
+		return reorderPoint;
+	}
+
+	public void setReorderPoint(int reorderPoint) {
+		this.reorderPoint = reorderPoint;
 	}
 
 	public Instant getCreatedAt() {

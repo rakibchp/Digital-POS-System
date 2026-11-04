@@ -15,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 import com.example.pos.product.Product;
 import com.example.pos.product.ProductRepository;
@@ -77,5 +78,25 @@ class InventoryServiceTest {
 						productId,
 						new InventoryAdjustmentRequest(
 								InventoryAdjustmentRequest.Direction.RECEIVE, 2, "Restock")));
+	}
+
+	@Test
+	void updatesAProductReorderPointAndReturnsCurrentStock() {
+		UUID productId = UUID.randomUUID();
+		Product product = mock(Product.class);
+		when(product.getId()).thenReturn(productId);
+		when(product.getSku()).thenReturn("COFFEE-01");
+		when(product.getName()).thenReturn("Coffee");
+		when(productRepository.findByIdForUpdate(productId)).thenReturn(Optional.of(product));
+		when(productRepository.saveAndFlush(product)).thenReturn(product);
+		when(inventoryRepository.sumQuantityChangeByProductId(productId)).thenReturn(2L);
+
+		InventoryItemResponse response = inventoryService.updateReorderPoint(
+				productId,
+				new ReorderPointRequest(5));
+
+		verify(product).setReorderPoint(5);
+		assertEquals(2L, response.quantityOnHand());
+		assertEquals(5, response.reorderPoint());
 	}
 }

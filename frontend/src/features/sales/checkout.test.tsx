@@ -45,6 +45,7 @@ describe("Checkout", () => {
         sku: product.sku,
         name: product.name,
         quantityOnHand: 5,
+        reorderPoint: 2,
       },
     ]);
     vi.mocked(getSales).mockResolvedValue([]);
@@ -120,6 +121,7 @@ describe("Checkout", () => {
         sku: product.sku,
         name: product.name,
         quantityOnHand: 5,
+        reorderPoint: 2,
       },
     ]);
     vi.mocked(getSales).mockResolvedValue([]);
@@ -147,6 +149,7 @@ describe("Checkout", () => {
         sku: product.sku,
         name: product.name,
         quantityOnHand: 5,
+        reorderPoint: 2,
       },
     ]);
     vi.mocked(getSales).mockResolvedValue([]);
@@ -202,6 +205,7 @@ describe("Checkout", () => {
         sku: product.sku,
         name: product.name,
         quantityOnHand: 1,
+        reorderPoint: 2,
       },
     ]);
     vi.mocked(getSales).mockResolvedValue([]);

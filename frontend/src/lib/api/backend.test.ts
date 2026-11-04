@@ -14,11 +14,38 @@ import {
   getSuppliers,
   getSales,
   returnSale,
+  updateInventoryReorderPoint,
 } from "./backend";
 
 describe("backend API client", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("updates an inventory reorder point", async () => {
+    const inventoryItem = {
+      productId: "product-1",
+      sku: "COFFEE-01",
+      name: "Coffee",
+      quantityOnHand: 5,
+      reorderPoint: 3,
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => inventoryItem,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      updateInventoryReorderPoint("Basic token", "product-1", 3),
+    ).resolves.toEqual(inventoryItem);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/backend/inventory/product-1/reorder-point",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ reorderPoint: 3 }),
+      }),
+    );
   });
 
   it("authenticates with Basic credentials without browser-managed cookies", async () => {
@@ -119,6 +146,7 @@ describe("backend API client", () => {
       sku: "COFFEE-01",
       name: "Coffee",
       quantityOnHand: 5,
+      reorderPoint: 3,
     };
     const adjustment = {
       id: "adjustment-1",

@@ -50,4 +50,19 @@ public class InventoryService {
 				movement.getReason(),
 				movement.getCreatedAt());
 	}
+
+	@Transactional
+	public InventoryItemResponse updateReorderPoint(UUID productId, ReorderPointRequest request) {
+		Product product = productRepository.findByIdForUpdate(productId)
+				.orElseThrow(() -> new InventoryProductNotFoundException(productId));
+		product.setReorderPoint(request.reorderPoint());
+		Product updatedProduct = productRepository.saveAndFlush(product);
+		long quantityOnHand = inventoryRepository.sumQuantityChangeByProductId(productId);
+		return new InventoryItemResponse(
+				updatedProduct.getId(),
+				updatedProduct.getSku(),
+				updatedProduct.getName(),
+				quantityOnHand,
+				request.reorderPoint());
+	}
 }

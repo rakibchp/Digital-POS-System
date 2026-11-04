@@ -4,6 +4,7 @@ import {
   adjustInventory,
   ApiError,
   getInventory,
+  updateInventoryReorderPoint,
   type InventoryItem,
 } from "@/lib/api/backend";
 import { InventoryManagement } from "./inventory-management";
@@ -14,6 +15,7 @@ vi.mock("@/lib/api/backend", async (importOriginal) => {
     ...actual,
     adjustInventory: vi.fn(),
     getInventory: vi.fn(),
+    updateInventoryReorderPoint: vi.fn(),
   };
 });
 
@@ -22,6 +24,7 @@ const inventoryItem: InventoryItem = {
   sku: "COFFEE-01",
   name: "Coffee",
   quantityOnHand: 5,
+  reorderPoint: 3,
 };
 
 describe("InventoryManagement", () => {
@@ -80,6 +83,44 @@ describe("InventoryManagement", () => {
     );
 
     await waitFor(() => expect(onSignOut).toHaveBeenCalledOnce());
+  });
+
+  it("saves a reorder point and reports low stock", async () => {
+    vi.mocked(getInventory).mockResolvedValue([
+      { ...inventoryItem, quantityOnHand: 2 },
+    ]);
+    vi.mocked(updateInventoryReorderPoint).mockResolvedValue({
+      ...inventoryItem,
+      quantityOnHand: 2,
+      reorderPoint: 4,
+    });
+
+    render(
+      <InventoryManagement
+        authorization="Basic token"
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("1 product needs attention")).toBeInTheDocument();
+    expect(screen.getByLabelText("Low stock alert")).toHaveTextContent(
+      "Low stock",
+    );
+    fireEvent.change(screen.getByLabelText("Reorder point for Coffee"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save reorder point for Coffee" }),
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Reorder point saved for Coffee.",
+    );
+    expect(updateInventoryReorderPoint).toHaveBeenCalledWith(
+      "Basic token",
+      "product-1",
+      4,
+    );
   });
 
   it("shows a conflict when an adjustment would exceed available stock", async () => {

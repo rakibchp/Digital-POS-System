@@ -5,6 +5,7 @@ import {
   adjustInventory,
   ApiError,
   getInventory,
+  updateInventoryReorderPoint,
   type InventoryItem,
 } from "@/lib/api/backend";
 
@@ -18,14 +19,17 @@ export function InventoryManagement({
   onSignOut,
 }: InventoryManagementProps) {
   const [items, setItems] = useState<InventoryItem[]>([]);
+  const [reorderPointDrafts, setReorderPointDrafts] = useState<Record<string, string>>({});
   const [selectedProductId, setSelectedProductId] = useState("");
   const [direction, setDirection] = useState<"RECEIVE" | "REMOVE">("RECEIVE");
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingReorderPointId, setSavingReorderPointId] = useState("");
   const [loadError, setLoadError] = useState("");
   const [formError, setFormError] = useState("");
+  const [reorderPointError, setReorderPointError] = useState("");
   const [notice, setNotice] = useState("");
 
   const loadInventory = useCallback(async () => {
@@ -34,6 +38,11 @@ export function InventoryManagement({
     try {
       const inventory = await getInventory(authorization);
       setItems(inventory);
+      setReorderPointDrafts(
+        Object.fromEntries(
+          inventory.map((item) => [item.productId, String(item.reorderPoint)]),
+        ),
+      );
       setSelectedProductId((current) =>
         inventory.some((item) => item.productId === current)
           ? current
@@ -100,6 +109,42 @@ export function InventoryManagement({
     }
   }
 
+  async function saveReorderPoint(event: FormEvent<HTMLFormElement>, item: InventoryItem) {
+    event.preventDefault();
+    setSavingReorderPointId(item.productId);
+    setReorderPointError("");
+    setNotice("");
+    try {
+      const updatedItem = await updateInventoryReorderPoint(
+        authorization,
+        item.productId,
+        Number(reorderPointDrafts[item.productId]),
+      );
+      setItems((current) =>
+        current.map((currentItem) =>
+          currentItem.productId === item.productId ? updatedItem : currentItem,
+        ),
+      );
+      setNotice(`Reorder point saved for ${item.name}.`);
+    } catch (requestError) {
+      if (requestError instanceof ApiError && requestError.status === 401) {
+        onSignOut();
+        return;
+      }
+      setReorderPointError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to update reorder point.",
+      );
+    } finally {
+      setSavingReorderPointId("");
+    }
+  }
+
+  const lowStockItems = items.filter(
+    (item) => item.reorderPoint > 0 && item.quantityOnHand <= item.reorderPoint,
+  );
+
   return (
     <section className="w-full max-w-5xl rounded-2xl border border-white/10 bg-white/4 p-5 shadow-2xl shadow-black/20 sm:p-7">
       <div className="border-b border-white/10 pb-6">
@@ -114,6 +159,23 @@ export function InventoryManagement({
 
       <div className="grid gap-8 pt-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div>
+          {lowStockItems.length > 0 && (
+            <div className="mb-5 rounded-xl border border-amber-300/20 bg-amber-300/8 p-4" aria-label="Low stock alert">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-semibold text-amber-100">Low stock</h3>
+                <span className="text-sm text-amber-200">
+                  {lowStockItems.length} {lowStockItems.length === 1 ? "product needs" : "products need"} attention
+                </span>
+              </div>
+              <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-amber-100/90">
+                {lowStockItems.map((item) => (
+                  <li key={item.productId}>
+                    {item.name}: {item.quantityOnHand} left (reorder at {item.reorderPoint})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="font-semibold text-white">Stock on hand</h3>
             <span className="rounded-full bg-white/8 px-3 py-1 text-xs text-slate-300">
@@ -148,12 +210,14 @@ export function InventoryManagement({
           )}
           {!loading && !loadError && items.length > 0 && (
             <div className="overflow-x-auto rounded-xl border border-white/10">
-              <table className="w-full min-w-[28rem] text-left text-sm">
+              <table className="w-full min-w-[42rem] text-left text-sm">
                 <thead className="bg-white/5 text-xs uppercase tracking-wide text-slate-400">
                   <tr>
                     <th className="px-4 py-3 font-medium">Product</th>
                     <th className="px-4 py-3 font-medium">SKU</th>
                     <th className="px-4 py-3 text-right font-medium">On hand</th>
+                    <th className="px-4 py-3 font-medium">Reorder point</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/8">
@@ -164,11 +228,64 @@ export function InventoryManagement({
                       <td className="px-4 py-3 text-right tabular-nums">
                         {item.quantityOnHand}
                       </td>
+                      <td className="px-4 py-3">
+                        <form
+                          className="flex items-center gap-2"
+                          onSubmit={(event) => void saveReorderPoint(event, item)}
+                        >
+                          <label className="sr-only" htmlFor={`reorder-point-${item.productId}`}>
+                            Reorder point for {item.name}
+                          </label>
+                          <input
+                            className="h-9 w-20 rounded-lg border border-white/10 bg-slate-950 px-2 text-sm text-white outline-none focus:border-emerald-300"
+                            id={`reorder-point-${item.productId}`}
+                            max="1000000"
+                            min="0"
+                            onChange={(event) =>
+                              setReorderPointDrafts((current) => ({
+                                ...current,
+                                [item.productId]: event.target.value,
+                              }))
+                            }
+                            required
+                            step="1"
+                            type="number"
+                            value={reorderPointDrafts[item.productId] ?? ""}
+                          />
+                          <button
+                            aria-label={`Save reorder point for ${item.name}`}
+                            className="rounded-md border border-white/15 px-2 py-1 text-xs text-slate-200 hover:bg-white/8 disabled:opacity-50"
+                            disabled={
+                              savingReorderPointId === item.productId ||
+                              Number(reorderPointDrafts[item.productId]) === item.reorderPoint
+                            }
+                            type="submit"
+                          >
+                            {savingReorderPointId === item.productId ? "Saving…" : "Save"}
+                          </button>
+                        </form>
+                      </td>
+                      <td className="px-4 py-3">
+                        {item.reorderPoint > 0 && item.quantityOnHand <= item.reorderPoint ? (
+                          <span className="rounded-full bg-amber-300/10 px-2 py-1 text-xs font-medium text-amber-200">
+                            {item.quantityOnHand === 0 ? "Out of stock" : "Low stock"}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">
+                            {item.reorderPoint > 0 ? "In stock" : "Not set"}
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          )}
+          {reorderPointError && (
+            <p className="mt-3 text-sm text-rose-200" role="alert">
+              {reorderPointError}
+            </p>
           )}
           {notice && (
             <p className="mt-3 text-sm text-emerald-300" role="status">
