@@ -11,6 +11,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.pos.customer.Customer;
+import com.example.pos.customer.CustomerRepository;
 import com.example.pos.inventory.InventoryMovement;
 import com.example.pos.inventory.InventoryRepository;
 import com.example.pos.product.Product;
@@ -20,20 +22,27 @@ import com.example.pos.product.ProductRepository;
 public class SaleService {
 
 	private final SaleRepository saleRepository;
+	private final CustomerRepository customerRepository;
 	private final ProductRepository productRepository;
 	private final InventoryRepository inventoryRepository;
 
 	public SaleService(
 			SaleRepository saleRepository,
+			CustomerRepository customerRepository,
 			ProductRepository productRepository,
 			InventoryRepository inventoryRepository) {
 		this.saleRepository = saleRepository;
+		this.customerRepository = customerRepository;
 		this.productRepository = productRepository;
 		this.inventoryRepository = inventoryRepository;
 	}
 
 	@Transactional
 	public SaleResponse create(CreateSaleRequest request) {
+		Customer customer = request.customerId() == null
+				? null
+				: customerRepository.findById(request.customerId())
+						.orElseThrow(() -> new SaleCustomerNotFoundException(request.customerId()));
 		var requestedItems = request.items();
 		var productIds = requestedItems.stream()
 				.map(CreateSaleRequest.SaleLineRequest::productId)
@@ -70,7 +79,7 @@ public class SaleService {
 					lineTotal));
 		}
 
-		Sale sale = saleRepository.saveAndFlush(new Sale(saleLines));
+		Sale sale = saleRepository.saveAndFlush(new Sale(saleLines, customer));
 		inventoryRepository.saveAll(saleLines.stream()
 				.map(line -> new InventoryMovement(
 						line.productId(),
@@ -92,6 +101,8 @@ public class SaleService {
 				sale.getId(),
 				sale.getTotalAmount(),
 				sale.getCreatedAt(),
+				sale.getCustomer() == null ? null : sale.getCustomer().getId(),
+				sale.getCustomer() == null ? null : sale.getCustomer().getName(),
 				sale.getItems().stream()
 						.map(item -> new SaleItemResponse(
 								item.getProductId(),

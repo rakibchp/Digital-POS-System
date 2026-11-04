@@ -16,6 +16,20 @@ export interface CreateProductInput {
   price: number;
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  createdAt: string;
+}
+
+export interface CreateCustomerInput {
+  name: string;
+  email?: string;
+  phone?: string;
+}
+
 export interface InventoryItem {
   productId: string;
   sku: string;
@@ -51,10 +65,13 @@ export interface Sale {
   id: string;
   totalAmount: number;
   createdAt: string;
+  customerId: string | null;
+  customerName: string | null;
   items: SaleItem[];
 }
 
 export interface CreateSaleInput {
+  customerId?: string;
   items: Array<{ productId: string; quantity: number }>;
 }
 
@@ -137,6 +154,23 @@ function isProduct(value: unknown): value is Product {
   );
 }
 
+function isCustomer(value: unknown): value is Customer {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "email" in value &&
+    (typeof value.email === "string" || value.email === null) &&
+    "phone" in value &&
+    (typeof value.phone === "string" || value.phone === null) &&
+    "createdAt" in value &&
+    typeof value.createdAt === "string"
+  );
+}
+
 function isInventoryItem(value: unknown): value is InventoryItem {
   return (
     typeof value === "object" &&
@@ -200,6 +234,10 @@ function isSale(value: unknown): value is Sale {
     typeof value.totalAmount === "number" &&
     "createdAt" in value &&
     typeof value.createdAt === "string" &&
+    "customerId" in value &&
+    (typeof value.customerId === "string" || value.customerId === null) &&
+    "customerName" in value &&
+    (typeof value.customerName === "string" || value.customerName === null) &&
     "items" in value &&
     Array.isArray(value.items) &&
     value.items.every(isSaleItem)
@@ -240,6 +278,29 @@ export async function createProduct(
   });
   if (!isProduct(payload)) {
     throw new ApiError("Backend returned an invalid product", 502);
+  }
+  return payload;
+}
+
+export async function getCustomers(authorization: string): Promise<Customer[]> {
+  const payload = await request("/api/backend/customers", authorization);
+  if (!Array.isArray(payload) || !payload.every(isCustomer)) {
+    throw new ApiError("Backend returned an invalid customer list", 502);
+  }
+  return payload;
+}
+
+export async function createCustomer(
+  authorization: string,
+  customer: CreateCustomerInput,
+): Promise<Customer> {
+  const payload = await request("/api/backend/customers", authorization, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(customer),
+  });
+  if (!isCustomer(payload)) {
+    throw new ApiError("Backend returned an invalid customer", 502);
   }
   return payload;
 }

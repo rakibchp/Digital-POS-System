@@ -52,6 +52,12 @@ public class SaleController {
 		return new SaleError(exception.getMessage());
 	}
 
+	@ExceptionHandler(SaleCustomerNotFoundException.class)
+	@ResponseStatus(HttpStatus.NOT_FOUND)
+	public SaleError customerNotFound(SaleCustomerNotFoundException exception) {
+		return new SaleError(exception.getMessage());
+	}
+
 	public record SaleError(String message) {
 	}
 }

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   createSale,
+  getCustomers,
   getInventory,
   getProducts,
   getSales,
@@ -15,6 +16,7 @@ vi.mock("@/lib/api/backend", async (importOriginal) => {
   return {
     ...actual,
     createSale: vi.fn(),
+    getCustomers: vi.fn(),
     getInventory: vi.fn(),
     getProducts: vi.fn(),
     getSales: vi.fn(),
@@ -46,10 +48,21 @@ describe("Checkout", () => {
       },
     ]);
     vi.mocked(getSales).mockResolvedValue([]);
+    vi.mocked(getCustomers).mockResolvedValue([
+      {
+        id: "customer-1",
+        name: "Sam Customer",
+        email: "sam@example.com",
+        phone: null,
+        createdAt: "2026-11-04T00:00:00Z",
+      },
+    ]);
     vi.mocked(createSale).mockResolvedValue({
       id: "sale-1",
       totalAmount: 7,
       createdAt: "2026-11-04T00:00:00Z",
+      customerId: "customer-1",
+      customerName: "Sam Customer",
       items: [
         {
           productId: product.id,
@@ -65,6 +78,9 @@ describe("Checkout", () => {
     render(<Checkout authorization="Basic token" onSignOut={vi.fn()} />);
     expect(await screen.findByText("Coffee")).toBeInTheDocument();
 
+    fireEvent.change(screen.getByLabelText("Customer"), {
+      target: { value: "customer-1" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
     fireEvent.click(screen.getByRole("button", { name: "Add one Coffee" }));
     expect(screen.getAllByText("$7.00")).toHaveLength(2);
@@ -72,6 +88,7 @@ describe("Checkout", () => {
 
     expect(await screen.findByRole("status")).toHaveTextContent("Sale complete");
     expect(createSale).toHaveBeenCalledWith("Basic token", {
+      customerId: "customer-1",
       items: [{ productId: "product-1", quantity: 2 }],
     });
     await waitFor(() => {
@@ -91,6 +108,7 @@ describe("Checkout", () => {
       },
     ]);
     vi.mocked(getSales).mockResolvedValue([]);
+    vi.mocked(getCustomers).mockResolvedValue([]);
 
     render(<Checkout authorization="Basic token" onSignOut={vi.fn()} />);
     await screen.findByText("Coffee");
@@ -103,6 +121,7 @@ describe("Checkout", () => {
     vi.mocked(getProducts).mockRejectedValue(new ApiError("Unauthorized", 401));
     vi.mocked(getInventory).mockResolvedValue([]);
     vi.mocked(getSales).mockResolvedValue([]);
+    vi.mocked(getCustomers).mockResolvedValue([]);
     const onSignOut = vi.fn();
 
     render(<Checkout authorization="Basic expired" onSignOut={onSignOut} />);

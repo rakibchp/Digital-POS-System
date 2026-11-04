@@ -21,6 +21,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.pos.inventory.InventoryMovement;
 import com.example.pos.inventory.InventoryRepository;
+import com.example.pos.customer.Customer;
+import com.example.pos.customer.CustomerRepository;
 import com.example.pos.product.Product;
 import com.example.pos.product.ProductRepository;
 
@@ -32,6 +34,9 @@ class SaleServiceTest {
 
 	@Mock
 	private ProductRepository productRepository;
+
+	@Mock
+	private CustomerRepository customerRepository;
 
 	@Mock
 	private InventoryRepository inventoryRepository;
@@ -51,12 +56,33 @@ class SaleServiceTest {
 				.willAnswer(invocation -> invocation.getArgument(0));
 
 		SaleResponse result = saleService.create(
-				new CreateSaleRequest(List.of(new CreateSaleRequest.SaleLineRequest(productId, 2))));
+				new CreateSaleRequest(null, List.of(new CreateSaleRequest.SaleLineRequest(productId, 2))));
 
 		assertEquals(new BigDecimal("7.00"), result.totalAmount());
 		assertEquals("COFFEE-01", result.items().getFirst().sku());
 		assertEquals(2, result.items().getFirst().quantity());
 		verify(inventoryRepository).saveAll(any(Iterable.class));
+	}
+
+	@Test
+	void associatesSelectedCustomerWithSale() {
+		UUID customerId = UUID.randomUUID();
+		UUID productId = UUID.randomUUID();
+		Customer customer = new Customer("Sam Customer", null, null);
+		Product product = product(productId, "COFFEE-01", "Coffee", "3.50");
+		given(customerRepository.findById(customerId)).willReturn(Optional.of(customer));
+		given(productRepository.findByIdForUpdate(productId)).willReturn(Optional.of(product));
+		given(inventoryRepository.sumQuantityChangeByProductId(productId)).willReturn(5L);
+		given(saleRepository.saveAndFlush(any(Sale.class)))
+				.willAnswer(invocation -> invocation.getArgument(0));
+		given(inventoryRepository.saveAll(any(Iterable.class)))
+				.willAnswer(invocation -> invocation.getArgument(0));
+
+		SaleResponse result = saleService.create(new CreateSaleRequest(
+				customerId, List.of(new CreateSaleRequest.SaleLineRequest(productId, 1))));
+
+		assertEquals(customer.getId(), result.customerId());
+		assertEquals("Sam Customer", result.customerName());
 	}
 
 	@Test
@@ -69,7 +95,7 @@ class SaleServiceTest {
 		assertThrows(
 				InsufficientSaleStockException.class,
 				() -> saleService.create(
-						new CreateSaleRequest(List.of(new CreateSaleRequest.SaleLineRequest(productId, 2)))));
+						new CreateSaleRequest(null, List.of(new CreateSaleRequest.SaleLineRequest(productId, 2)))));
 	}
 
 	@Test
@@ -79,7 +105,7 @@ class SaleServiceTest {
 
 		assertThrows(
 				DuplicateSaleProductException.class,
-				() -> saleService.create(new CreateSaleRequest(List.of(line, line))));
+				() -> saleService.create(new CreateSaleRequest(null, List.of(line, line))));
 	}
 
 	@Test
@@ -90,7 +116,19 @@ class SaleServiceTest {
 		assertThrows(
 				SaleProductNotFoundException.class,
 				() -> saleService.create(
-						new CreateSaleRequest(List.of(new CreateSaleRequest.SaleLineRequest(productId, 1)))));
+						new CreateSaleRequest(null, List.of(new CreateSaleRequest.SaleLineRequest(productId, 1)))));
+	}
+
+	@Test
+	void rejectsUnknownCustomer() {
+		UUID customerId = UUID.randomUUID();
+		given(customerRepository.findById(customerId)).willReturn(Optional.empty());
+
+		assertThrows(
+				SaleCustomerNotFoundException.class,
+				() -> saleService.create(new CreateSaleRequest(
+						customerId,
+						List.of(new CreateSaleRequest.SaleLineRequest(UUID.randomUUID(), 1)))));
 	}
 
 	private static Product product(UUID id, String sku, String name, String price) {

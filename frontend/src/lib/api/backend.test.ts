@@ -3,8 +3,10 @@ import {
   adjustInventory,
   authenticate,
   createProduct,
+  createCustomer,
   createSale,
   getInventory,
+  getCustomers,
   getProducts,
   getSales,
 } from "./backend";
@@ -76,6 +78,36 @@ describe("backend API client", () => {
     });
   });
 
+  it("loads and creates customers", async () => {
+    const customer = {
+      id: "customer-1",
+      name: "Sam Customer",
+      email: "sam@example.com",
+      phone: null,
+      createdAt: "2026-11-04T00:00:00Z",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => [customer] })
+      .mockResolvedValueOnce({ ok: true, json: async () => customer });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getCustomers("Basic token")).resolves.toEqual([customer]);
+    await expect(
+      createCustomer("Basic token", {
+        name: "Sam Customer",
+        email: "sam@example.com",
+      }),
+    ).resolves.toEqual(customer);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/backend/customers",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "Sam Customer", email: "sam@example.com" }),
+      }),
+    );
+  });
+
   it("loads inventory and records a stock adjustment", async () => {
     const inventoryItem = {
       productId: "product-1",
@@ -129,6 +161,8 @@ describe("backend API client", () => {
       id: "sale-1",
       totalAmount: 7,
       createdAt: "2026-11-04T00:00:00Z",
+      customerId: null,
+      customerName: null,
       items: [
         {
           productId: "product-1",

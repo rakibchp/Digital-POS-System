@@ -47,6 +47,8 @@ class SaleControllerTest {
 						saleId,
 						new BigDecimal("7.00"),
 						Instant.parse("2026-11-04T00:00:00Z"),
+						null,
+						null,
 						List.of(new SaleItemResponse(
 								productId, "COFFEE-01", "Coffee",
 								new BigDecimal("3.50"), 2, new BigDecimal("7.00")))));

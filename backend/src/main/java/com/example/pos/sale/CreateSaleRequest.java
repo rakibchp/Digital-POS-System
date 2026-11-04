@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Max;
 
 public record CreateSaleRequest(
+		UUID customerId,
 		@NotEmpty @Size(max = 100) List<@Valid SaleLineRequest> items) {
 
 	public record SaleLineRequest(

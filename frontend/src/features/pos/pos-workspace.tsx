@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { BackendStatusCard } from "@/features/backend-status/backend-status-card";
 import { LoginForm } from "@/features/auth/login-form";
+import { CustomerManagement } from "@/features/customers/customer-management";
 import { InventoryManagement } from "@/features/inventory/inventory-management";
 import { ProductCatalog } from "@/features/products/product-catalog";
 import { Checkout } from "@/features/sales/checkout";
@@ -14,7 +15,7 @@ export function PosWorkspace() {
     authorization: string;
   } | null>(null);
   const [section, setSection] = useState<
-    "checkout" | "sales" | "products" | "inventory"
+    "checkout" | "sales" | "customers" | "products" | "inventory"
   >("checkout");
 
   return (
@@ -68,6 +69,18 @@ export function PosWorkspace() {
                 Sales
               </button>
               <button
+                aria-current={section === "customers" ? "page" : undefined}
+                className={`h-10 flex-1 rounded-lg px-4 text-sm font-medium transition ${
+                  section === "customers"
+                    ? "bg-emerald-300 text-slate-950"
+                    : "text-slate-300 hover:bg-white/8"
+                }`}
+                onClick={() => setSection("customers")}
+                type="button"
+              >
+                Customers
+              </button>
+              <button
                 aria-current={section === "products" ? "page" : undefined}
                 className={`h-10 flex-1 rounded-lg px-4 text-sm font-medium transition ${
                   section === "products"
@@ -117,6 +130,11 @@ export function PosWorkspace() {
                 authorization={authenticated.authorization}
                 onSignOut={() => setAuthenticated(null)}
                 username={authenticated.username}
+              />
+            ) : section === "customers" ? (
+              <CustomerManagement
+                authorization={authenticated.authorization}
+                onSignOut={() => setAuthenticated(null)}
               />
             ) : (
               <InventoryManagement

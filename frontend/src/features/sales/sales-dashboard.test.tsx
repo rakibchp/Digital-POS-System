@@ -13,6 +13,8 @@ const sales: Sale[] = [
     id: "sale-12345678",
     totalAmount: 14,
     createdAt: "2026-11-04T10:00:00Z",
+    customerId: "customer-1",
+    customerName: "Sam Customer",
     items: [
       {
         productId: "coffee",
@@ -28,6 +30,8 @@ const sales: Sale[] = [
     id: "sale-87654321",
     totalAmount: 5,
     createdAt: "2026-11-04T11:00:00Z",
+    customerId: null,
+    customerName: null,
     items: [
       {
         productId: "tea",

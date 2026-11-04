@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   createSale,
+  getCustomers,
   getInventory,
   getProducts,
   getSales,
+  type Customer,
   type Product,
   type Sale,
 } from "@/lib/api/backend";
@@ -30,6 +32,8 @@ function formatPrice(amount: number) {
 export function Checkout({ authorization, onSignOut }: CheckoutProps) {
   const [products, setProducts] = useState<CheckoutProduct[]>([]);
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerId, setCustomerId] = useState("");
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -40,10 +44,11 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
     setLoading(true);
     setError("");
     try {
-      const [catalog, inventory, sales] = await Promise.all([
+      const [catalog, inventory, sales, customers] = await Promise.all([
         getProducts(authorization),
         getInventory(authorization),
         getSales(authorization),
+        getCustomers(authorization),
       ]);
       const stockByProduct = new Map(
         inventory.map((item) => [item.productId, item.quantityOnHand]),
@@ -55,6 +60,7 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
         })),
       );
       setRecentSales(sales);
+      setCustomers(customers);
       setCart({});
     } catch (requestError) {
       if (requestError instanceof ApiError && requestError.status === 401) {
@@ -115,6 +121,7 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
     setNotice("");
     try {
       const sale = await createSale(authorization, {
+        ...(customerId ? { customerId } : {}),
         items: cartLines.map(({ product, quantity }) => ({
           productId: product.id,
           quantity,
@@ -279,6 +286,9 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
                         <p className="text-sm font-medium text-white">
                           Sale · {sale.items.reduce((sum, item) => sum + item.quantity, 0)} items
                         </p>
+                        {sale.customerName && (
+                          <p className="text-xs text-emerald-200">{sale.customerName}</p>
+                        )}
                         <time className="text-xs text-slate-400" dateTime={sale.createdAt}>
                           {new Date(sale.createdAt).toLocaleString()}
                         </time>
@@ -294,6 +304,25 @@ export function Checkout({ authorization, onSignOut }: CheckoutProps) {
           </div>
 
           <aside className="h-fit rounded-xl border border-white/10 bg-slate-950/40 p-5">
+            <label
+              className="mb-2 block text-sm font-medium text-slate-200"
+              htmlFor="checkout-customer"
+            >
+              Customer
+            </label>
+            <select
+              className="mb-5 h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/20"
+              id="checkout-customer"
+              onChange={(event) => setCustomerId(event.target.value)}
+              value={customerId}
+            >
+              <option value="">Walk-in customer</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                </option>
+              ))}
+            </select>
             <h3 className="font-semibold text-white">Current sale</h3>
             {cartLines.length === 0 ? (
               <p className="mt-4 rounded-lg border border-dashed border-white/15 p-4 text-sm text-slate-400">
