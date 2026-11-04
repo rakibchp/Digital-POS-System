@@ -6,6 +6,7 @@ import { LoginForm } from "@/features/auth/login-form";
 import { CustomerManagement } from "@/features/customers/customer-management";
 import { InventoryManagement } from "@/features/inventory/inventory-management";
 import { ProductCatalog } from "@/features/products/product-catalog";
+import { SupplierManagement } from "@/features/purchasing/supplier-management";
 import { Checkout } from "@/features/sales/checkout";
 import { SalesDashboard } from "@/features/sales/sales-dashboard";
 
@@ -15,7 +16,7 @@ export function PosWorkspace() {
     authorization: string;
   } | null>(null);
   const [section, setSection] = useState<
-    "checkout" | "sales" | "customers" | "products" | "inventory"
+    "checkout" | "sales" | "customers" | "products" | "inventory" | "suppliers"
   >("checkout");
 
   return (
@@ -104,6 +105,18 @@ export function PosWorkspace() {
               >
                 Inventory
               </button>
+              <button
+                aria-current={section === "suppliers" ? "page" : undefined}
+                className={`h-10 flex-1 rounded-lg px-4 text-sm font-medium transition ${
+                  section === "suppliers"
+                    ? "bg-emerald-300 text-slate-950"
+                    : "text-slate-300 hover:bg-white/8"
+                }`}
+                onClick={() => setSection("suppliers")}
+                type="button"
+              >
+                Suppliers
+              </button>
               <span className="hidden px-3 text-sm text-slate-400 sm:inline">
                 {authenticated.username}
               </span>
@@ -136,8 +149,13 @@ export function PosWorkspace() {
                 authorization={authenticated.authorization}
                 onSignOut={() => setAuthenticated(null)}
               />
-            ) : (
+            ) : section === "inventory" ? (
               <InventoryManagement
+                authorization={authenticated.authorization}
+                onSignOut={() => setAuthenticated(null)}
+              />
+            ) : (
+              <SupplierManagement
                 authorization={authenticated.authorization}
                 onSignOut={() => setAuthenticated(null)}
               />

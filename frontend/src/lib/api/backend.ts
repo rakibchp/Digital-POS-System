@@ -30,6 +30,45 @@ export interface CreateCustomerInput {
   phone?: string;
 }
 
+export interface Supplier {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  createdAt: string;
+}
+
+export interface CreateSupplierInput {
+  name: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface PurchaseReceiptItem {
+  productId: string;
+  sku: string;
+  productName: string;
+  quantity: number;
+  unitCost: number;
+  lineCost: number;
+}
+
+export interface PurchaseReceipt {
+  id: string;
+  supplierId: string;
+  supplierName: string;
+  supplierReference: string | null;
+  totalCost: number;
+  createdAt: string;
+  items: PurchaseReceiptItem[];
+}
+
+export interface CreatePurchaseReceiptInput {
+  supplierId: string;
+  supplierReference?: string;
+  items: Array<{ productId: string; quantity: number; unitCost: number }>;
+}
+
 export interface InventoryItem {
   productId: string;
   sku: string;
@@ -185,6 +224,65 @@ function isCustomer(value: unknown): value is Customer {
   );
 }
 
+function isSupplier(value: unknown): value is Supplier {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "email" in value &&
+    (typeof value.email === "string" || value.email === null) &&
+    "phone" in value &&
+    (typeof value.phone === "string" || value.phone === null) &&
+    "createdAt" in value &&
+    typeof value.createdAt === "string"
+  );
+}
+
+function isPurchaseReceiptItem(value: unknown): value is PurchaseReceiptItem {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "productId" in value &&
+    typeof value.productId === "string" &&
+    "sku" in value &&
+    typeof value.sku === "string" &&
+    "productName" in value &&
+    typeof value.productName === "string" &&
+    "quantity" in value &&
+    typeof value.quantity === "number" &&
+    "unitCost" in value &&
+    typeof value.unitCost === "number" &&
+    "lineCost" in value &&
+    typeof value.lineCost === "number"
+  );
+}
+
+function isPurchaseReceipt(value: unknown): value is PurchaseReceipt {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "supplierId" in value &&
+    typeof value.supplierId === "string" &&
+    "supplierName" in value &&
+    typeof value.supplierName === "string" &&
+    "supplierReference" in value &&
+    (typeof value.supplierReference === "string" ||
+      value.supplierReference === null) &&
+    "totalCost" in value &&
+    typeof value.totalCost === "number" &&
+    "createdAt" in value &&
+    typeof value.createdAt === "string" &&
+    "items" in value &&
+    Array.isArray(value.items) &&
+    value.items.every(isPurchaseReceiptItem)
+  );
+}
+
 function isInventoryItem(value: unknown): value is InventoryItem {
   return (
     typeof value === "object" &&
@@ -330,6 +428,61 @@ export async function createCustomer(
   });
   if (!isCustomer(payload)) {
     throw new ApiError("Backend returned an invalid customer", 502);
+  }
+  return payload;
+}
+
+export async function getSuppliers(authorization: string): Promise<Supplier[]> {
+  const payload = await request("/api/backend/suppliers", authorization);
+  if (!Array.isArray(payload) || !payload.every(isSupplier)) {
+    throw new ApiError("Backend returned an invalid supplier list", 502);
+  }
+  return payload;
+}
+
+export async function createSupplier(
+  authorization: string,
+  supplier: CreateSupplierInput,
+): Promise<Supplier> {
+  const payload = await request("/api/backend/suppliers", authorization, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(supplier),
+  });
+  if (!isSupplier(payload)) {
+    throw new ApiError("Backend returned an invalid supplier", 502);
+  }
+  return payload;
+}
+
+export async function getPurchaseReceipts(
+  authorization: string,
+): Promise<PurchaseReceipt[]> {
+  const payload = await request(
+    "/api/backend/purchases/receipts",
+    authorization,
+  );
+  if (!Array.isArray(payload) || !payload.every(isPurchaseReceipt)) {
+    throw new ApiError("Backend returned invalid purchase receipts", 502);
+  }
+  return payload;
+}
+
+export async function createPurchaseReceipt(
+  authorization: string,
+  receipt: CreatePurchaseReceiptInput,
+): Promise<PurchaseReceipt> {
+  const payload = await request(
+    "/api/backend/purchases/receipts",
+    authorization,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(receipt),
+    },
+  );
+  if (!isPurchaseReceipt(payload)) {
+    throw new ApiError("Backend returned an invalid purchase receipt", 502);
   }
   return payload;
 }

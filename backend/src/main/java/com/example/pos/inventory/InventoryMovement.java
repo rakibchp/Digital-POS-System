@@ -18,6 +18,9 @@ public class InventoryMovement {
 	@Column(nullable = false, updatable = false)
 	private UUID productId;
 
+	@Column(name = "purchase_receipt_id", updatable = false)
+	private UUID purchaseReceiptId;
+
 	@Column(nullable = false, updatable = false)
 	private int quantityChange;
 
@@ -31,8 +34,13 @@ public class InventoryMovement {
 	}
 
 	public InventoryMovement(UUID productId, int quantityChange, String reason) {
+		this(productId, quantityChange, reason, null);
+	}
+
+	public InventoryMovement(UUID productId, int quantityChange, String reason, UUID purchaseReceiptId) {
 		this.id = UUID.randomUUID();
 		this.productId = productId;
+		this.purchaseReceiptId = purchaseReceiptId;
 		this.quantityChange = quantityChange;
 		this.reason = reason;
 		this.createdAt = Instant.now();
@@ -44,6 +52,10 @@ public class InventoryMovement {
 
 	public UUID getProductId() {
 		return productId;
+	}
+
+	public UUID getPurchaseReceiptId() {
+		return purchaseReceiptId;
 	}
 
 	public int getQuantityChange() {

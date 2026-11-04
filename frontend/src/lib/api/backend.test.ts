@@ -4,10 +4,14 @@ import {
   authenticate,
   createProduct,
   createCustomer,
+  createPurchaseReceipt,
+  createSupplier,
   createSale,
   getInventory,
   getCustomers,
+  getPurchaseReceipts,
   getProducts,
+  getSuppliers,
   getSales,
   returnSale,
 } from "./backend";
@@ -152,6 +156,65 @@ describe("backend API client", () => {
           direction: "RECEIVE",
           quantity: 3,
           reason: "Supplier delivery",
+        }),
+      }),
+    );
+  });
+
+  it("loads suppliers and receipts and records a received delivery", async () => {
+    const supplier = {
+      id: "supplier-1",
+      name: "Coffee Co",
+      email: null,
+      phone: null,
+      createdAt: "2026-11-04T00:00:00Z",
+    };
+    const receipt = {
+      id: "receipt-1",
+      supplierId: "supplier-1",
+      supplierName: "Coffee Co",
+      supplierReference: "INV-204",
+      totalCost: 10,
+      createdAt: "2026-11-04T00:00:00Z",
+      items: [
+        {
+          productId: "product-1",
+          sku: "COFFEE-01",
+          productName: "Coffee",
+          quantity: 4,
+          unitCost: 2.5,
+          lineCost: 10,
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => [supplier] })
+      .mockResolvedValueOnce({ ok: true, json: async () => supplier })
+      .mockResolvedValueOnce({ ok: true, json: async () => [receipt] })
+      .mockResolvedValueOnce({ ok: true, json: async () => receipt });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getSuppliers("Basic token")).resolves.toEqual([supplier]);
+    await expect(
+      createSupplier("Basic token", { name: "Coffee Co" }),
+    ).resolves.toEqual(supplier);
+    await expect(getPurchaseReceipts("Basic token")).resolves.toEqual([receipt]);
+    await expect(
+      createPurchaseReceipt("Basic token", {
+        supplierId: "supplier-1",
+        supplierReference: "INV-204",
+        items: [{ productId: "product-1", quantity: 4, unitCost: 2.5 }],
+      }),
+    ).resolves.toEqual(receipt);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/backend/purchases/receipts",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          supplierId: "supplier-1",
+          supplierReference: "INV-204",
+          items: [{ productId: "product-1", quantity: 4, unitCost: 2.5 }],
         }),
       }),
     );
